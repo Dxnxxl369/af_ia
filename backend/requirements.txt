@@ -1,0 +1,12 @@
+# --- Framework Principal ---
+django
+djangorestframework
+djangorestframework-simplejwt
+
+# --- Conexión a Base de Datos (PostgreSQL) ---
+# Usamos psycopg2-binary, ya que lo vimos en tus errores
+psycopg2-binary
+
+# --- Utilidades (CORS es esencial para React) ---
+django-cors-headers
+python-dotenv
