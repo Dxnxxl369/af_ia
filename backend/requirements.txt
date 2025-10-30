@@ -1,12 +1,27 @@
-# --- Framework Principal ---
+# --- Core Framework ---
 django
 djangorestframework
-djangorestframework-simplejwt
 
-# --- Conexión a Base de Datos (PostgreSQL) ---
-# Usamos psycopg2-binary, ya que lo vimos en tus errores
+# --- Autenticación y Seguridad ---
+djangorestframework-simplejwt
+django-cors-headers
+
+# --- Base de Datos (PostgreSQL) ---
+# Driver para conectar Django con PostgreSQL
 psycopg2-binary
 
-# --- Utilidades (CORS es esencial para React) ---
-django-cors-headers
+# --- Manejo de Archivos (Fotos) ---
+# Necesario para ImageField (fotos de perfil y activos)
+Pillow
+
+# --- Reportes ---
+# Para generar archivos Excel (.xlsx)
+openpyxl
+# Para generar archivos PDF
+reportlab
+
+# --- Utilidades (Recomendado para Colaboración y Despliegue) ---
+# Para manejar variables de entorno (archivos .env)
 python-dotenv
+# Servidor WSGI (necesario para desplegar en producción, bueno para estandarizar)
+gunicorn
