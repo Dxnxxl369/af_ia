@@ -748,6 +748,20 @@ export const getSuscripcion = async () => {
     return response.data;
 };
 
+// --- [NUEVO] Funciones para Revalorización ---
+export const getRevalorizaciones = async (activoId) => {
+    // Filtra el historial por el ID de un activo específico
+    const response = await apiClient.get('/revalorizaciones/', { params: { activo_id: activoId } });
+    return response.data;
+};
+
+export const ejecutarRevalorizacion = async (data) => {
+    // data debe ser { activo_id, factor, notas }
+    const response = await apiClient.post('/revalorizaciones/ejecutar/', data);
+    await logAction('EXECUTE: Revalorizacion', { activo_id: data.activo_id, factor: data.factor });
+    return response.data;
+};
+
 // --- Función para actualizar Tema (ya la tenías) ---
 export const updateMyThemePreferences = async (preferences) => {
     const response = await apiClient.patch('/me/theme/', preferences);

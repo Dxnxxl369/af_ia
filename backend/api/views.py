@@ -23,6 +23,7 @@ from django.db.models import Q
 import re
 from datetime import datetime
 from .report_utils import create_excel_report, create_pdf_report
+from decimal import Decimal, InvalidOperation
 logger = logging.getLogger(__name__)
 
 class MyThemePreferencesView(APIView):
@@ -160,14 +161,6 @@ class BaseTenantViewSet(viewsets.ModelViewSet):
         except Exception as e:
              print(f"ERROR in get_queryset: {e}")
              return self.queryset.none()       
-
-    def perform_create(self, serializer):
-        try:
-            empleado = self.request.user.empleado
-            serializer.save(empresa=empleado.empresa) 
-        except Exception as e:
-             print(f"ERROR in perform_create: {e}")
-             raise serializers.ValidationError(f"Error al asignar empresa: {e}")
 
     def check_permissions(self, request):
         super().check_permissions(request) 
@@ -407,6 +400,7 @@ class RegisterEmpresaView(APIView):
                 token['nombre_completo'] = f"{user.first_name} {empleado.apellido_p}"
                 token['empresa_id'] = str(empleado.empresa.id)
                 token['empresa_nombre'] = empleado.empresa.nombre
+                token['empleado_id'] = str(empleado.id)
                 # Al registrarse, el rol de Admin aún no está asignado (a menos que lo hagas en el serializer)
                 token['roles'] = [] # Vacío por ahora
                 token['is_admin'] = user.is_staff
@@ -708,6 +702,8 @@ class ReporteQueryExportView(ReporteQueryView): # Hereda get_base_queryset
             logger.error(f"Report Query Export Error: {e}", exc_info=True)
             return Response({"detail": f"Error al exportar: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
                 
+from django.db import transaction
+
 class MantenimientoViewSet(BaseTenantViewSet):
     queryset = Mantenimiento.objects.all().select_related('activo', 'empleado_asignado__usuario') # Optimizar query
     serializer_class = MantenimientoSerializer
@@ -821,6 +817,107 @@ class MantenimientoViewSet(BaseTenantViewSet):
         # (Podrías hacer una lógica más compleja para notificar solo si cambia la asignación)
         # Por simplicidad, notificamos siempre que haya alguien asignado tras guardar.
         self._crear_notificacion_asignacion(mantenimiento)
+
+class RevalorizacionActivoViewSet(BaseTenantViewSet):
+    queryset = RevalorizacionActivo.objects.all()
+    serializer_class = RevalorizacionActivoSerializer
+    required_manage_permission = 'manage_revalorizacion'
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        activo_id = self.request.query_params.get('activo_id')
+        if activo_id:
+            return qs.filter(activo_id=activo_id)
+        return qs
+
+    @action(detail=False, methods=['post'], url_path='ejecutar')
+    def ejecutar(self, request, *args, **kwargs):
+        # 1. Comprobar permiso explícitamente para esta acción
+        if not check_permission(request, self, self.required_manage_permission):
+            self.permission_denied(request, message=f'Permiso "{self.required_manage_permission}" requerido.')
+
+        # 2. Validar datos de entrada
+        activo_id = request.data.get('activo_id')
+        reval_type = request.data.get('reval_type') # 'factor', 'fijo', 'porcentual'
+        value_str = request.data.get('value')
+        notas = request.data.get('notas')
+
+        if not all([activo_id, reval_type, value_str]):
+            return Response({'detail': 'Se requieren activo_id, reval_type y value.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if reval_type not in ['factor', 'fijo', 'porcentual']:
+            return Response({'detail': 'reval_type inválido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            value = Decimal(value_str)
+            if reval_type == 'porcentual':
+                if value <= -100:
+                    raise ValueError("El porcentaje no puede ser menor o igual a -100%.")
+            elif value < 0:
+                raise ValueError("El valor no puede ser negativo para este método.")
+
+        except (ValueError, InvalidOperation) as e:
+            return Response({'detail': str(e) or 'El valor proporcionado no es un número válido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with transaction.atomic():
+                # Determinar la empresa del usuario
+                empresa_obj = Empresa.objects.first() if request.user.is_staff else request.user.empleado.empresa
+                if not empresa_obj:
+                    return Response({'detail': 'No se pudo determinar la empresa para la operación.'}, status=status.HTTP_400_BAD_REQUEST)
+
+                activo = ActivoFijo.objects.select_for_update().get(
+                    id=activo_id, 
+                    empresa=empresa_obj
+                )
+
+                valor_anterior = activo.valor_actual
+                valor_nuevo = Decimal(0)
+                factor_aplicado = Decimal(1)
+
+                if valor_anterior == 0 and reval_type != 'fijo':
+                    return Response({'detail': 'No se puede revalorizar por factor o porcentaje un activo con valor cero.'}, status=status.HTTP_400_BAD_REQUEST)
+
+                # 3. Calcular el nuevo valor según el tipo
+                if reval_type == 'factor':
+                    factor_aplicado = value
+                    valor_nuevo = valor_anterior * factor_aplicado
+                elif reval_type == 'fijo':
+                    valor_nuevo = value
+                    if valor_anterior > 0:
+                        factor_aplicado = valor_nuevo / valor_anterior
+                    else:
+                        factor_aplicado = Decimal(0)
+                elif reval_type == 'porcentual':
+                    factor_aplicado = Decimal(1) + (value / Decimal(100))
+                    valor_nuevo = valor_anterior * factor_aplicado
+
+                # 4. Crear registro de historial
+                historial = RevalorizacionActivo.objects.create(
+                    empresa=activo.empresa,
+                    activo=activo,
+                    valor_anterior=valor_anterior,
+                    valor_nuevo=valor_nuevo,
+                    factor_aplicado=factor_aplicado,
+                    notas=notas,
+                    realizado_por=request.user
+                )
+
+                # 5. Actualizar el valor del activo
+                activo.valor_actual = valor_nuevo
+                activo.save(update_fields=['valor_actual'])
+
+            serializer = self.get_serializer(historial)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        except ActivoFijo.DoesNotExist:
+            return Response({'detail': 'El activo no existe o no pertenece a tu empresa.'}, status=status.HTTP_404_NOT_FOUND)
+        except Empleado.DoesNotExist:
+            return Response({'detail': 'El perfil de empleado para este usuario no existe.'}, status=status.HTTP_403_FORBIDDEN)
+        except Exception as e:
+            logger.error(f"Error en RevalorizacionActivoViewSet.ejecutar: {e}", exc_info=True)
+            return Response({'detail': f'Error interno del servidor: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class SuscripcionViewSet(BaseTenantViewSet):
     """

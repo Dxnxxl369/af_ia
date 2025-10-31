@@ -11,7 +11,11 @@ class HasPermission(permissions.BasePermission):
         super().__init__()
 
     def has_permission(self, request, view):
-        # Always allow safe methods (GET, HEAD, OPTIONS) for authenticated users
+        # --- [NUEVO] El SuperAdmin siempre tiene permiso ---
+        if request.user and request.user.is_staff:
+            return True
+
+        # Siempre permite métodos seguros (GET, HEAD, OPTIONS) para usuarios autenticados
         if request.method in permissions.SAFE_METHODS:
             return request.user and request.user.is_authenticated
 

@@ -31,7 +31,7 @@ function NotificationBell() {
     // Cargar notificaciones al montar y luego cada 1 minuto
     useEffect(() => {
         fetchNotificaciones(); // Carga inicial
-        const interval = setInterval(fetchNotificaciones, 600); // Recarga periódica const interval = setInterval(fetchNotificaciones, 60000);
+        const interval = setInterval(fetchNotificaciones, 60000); // Recarga periódica
         return () => clearInterval(interval);
     }, [fetchNotificaciones]);
 

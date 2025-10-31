@@ -5,6 +5,24 @@ from django.contrib.auth.models import User
 from .permissions import check_permission, HasPermission
 from .models import *
 from django.db import transaction
+from datetime import timedelta # <-- NUEVA IMPORTACIÓN
+
+class CurrentUserEmpresaDefault:
+    requires_context = True
+
+    def __call__(self, serializer_field):
+        request = serializer_field.context['request']
+        user = request.user
+        if user.is_staff:
+            empresa = Empresa.objects.first()
+            if not empresa:
+                raise serializers.ValidationError("No hay empresas registradas. El superusuario no puede crear datos.")
+            return empresa
+        
+        if hasattr(user, 'empleado'):
+            return user.empleado.empresa
+        
+        raise serializers.ValidationError("El usuario no está asociado a una empresa.")
 
 class EmpresaSerializer(serializers.ModelSerializer):
     class Meta:
@@ -48,22 +66,37 @@ class UsuarioSerializer(serializers.ModelSerializer):
         fields = ['id', 'username', 'first_name', 'last_name', 'email']
 
 class CargoSerializer(serializers.ModelSerializer):
+    empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())
     class Meta:
         model = Cargo
         fields = '__all__'
-        read_only_fields = ('empresa',)
+
+    def validate(self, data):
+        empresa = data.get('empresa')
+        nombre = data.get('nombre')
+        query = Cargo.objects.filter(empresa=empresa, nombre__iexact=nombre)
+
+        if self.instance:
+            query = query.exclude(pk=self.instance.pk)
+
+        if query.exists():
+            raise serializers.ValidationError({
+                "nombre": f"Ya existe un cargo con el nombre '{nombre}' en la empresa '{empresa.nombre}'."
+            })
+            
+        return data
 
 class DepartamentoSerializer(serializers.ModelSerializer):
+    empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())
     class Meta:
         model = Departamento
         fields = '__all__'
-        read_only_fields = ('empresa',)
 
 class RolesSerializer(serializers.ModelSerializer):
+    empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())
     class Meta:
         model = Roles
         fields = '__all__'
-        read_only_fields = ('empresa',)
         
 class EmpleadoSerializer(serializers.ModelSerializer): # <-- [EDITADO]
     usuario = UsuarioSerializer(read_only=True)
@@ -83,6 +116,7 @@ class EmpleadoSerializer(serializers.ModelSerializer): # <-- [EDITADO]
     # DRF maneja ImageField (y FileField) automáticamente
     # Aceptará un archivo subido (multipart/form-data)
     foto_perfil = serializers.ImageField(required=False, allow_null=True)
+    empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())
 
     class Meta:
         model = Empleado
@@ -96,7 +130,7 @@ class EmpleadoSerializer(serializers.ModelSerializer): # <-- [EDITADO]
             # Campos read_only
             'cargo_nombre', 'departamento_nombre', 'roles_asignados' 
         ]      
-        read_only_fields = ('empresa', 'usuario', 'cargo_nombre', 'departamento_nombre', 'roles_asignados')
+        read_only_fields = ('usuario', 'cargo_nombre', 'departamento_nombre', 'roles_asignados')
         extra_kwargs = {
             'cargo': {'required': False, 'allow_null': True}, # <-- 'write_only: True' ELIMINADO
             'departamento': {'required': False, 'allow_null': True}, # <-- 'write_only: True' ELIMINADO
@@ -153,15 +187,16 @@ class EmpleadoSerializer(serializers.ModelSerializer): # <-- [EDITADO]
         return super().update(instance, validated_data)
 
 class ActivoFijoSerializer(serializers.ModelSerializer): # <-- [EDITADO]
+    empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())
     # --- [NUEVO] Campo de foto ---
     foto_activo = serializers.ImageField(required=False, allow_null=True)
 
     class Meta:
         model = ActivoFijo
         fields = '__all__' # Incluye 'foto_activo'
-        read_only_fields = ('empresa',)    
 
 class PresupuestoSerializer(serializers.ModelSerializer):
+    empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())
     # Le decimos que anide la información del departamento al leer
     departamento = DepartamentoSerializer(read_only=True)
     # Al escribir, esperamos solo el ID del departamento
@@ -171,34 +206,33 @@ class PresupuestoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Presupuesto
-        fields = ['id', 'descripcion', 'monto', 'fecha', 'departamento', 'departamento_id']
-        read_only_fields = ('empresa',)
+        fields = ['id', 'descripcion', 'monto', 'fecha', 'departamento', 'departamento_id', 'empresa']
         
 
 
 class CategoriaActivoSerializer(serializers.ModelSerializer):
+    empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())
     class Meta:
         model = CategoriaActivo
         fields = '__all__'
-        read_only_fields = ('empresa',)
 
 class EstadoSerializer(serializers.ModelSerializer):
+    empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())
     class Meta:
         model = Estado
         fields = '__all__'
-        read_only_fields = ('empresa',)
 
 class UbicacionSerializer(serializers.ModelSerializer):
+    empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())
     class Meta:
         model = Ubicacion
         fields = '__all__'
-        read_only_fields = ('empresa',)
 
 class ProveedorSerializer(serializers.ModelSerializer):
+    empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())
     class Meta:
         model = Proveedor
         fields = '__all__'
-        read_only_fields = ('empresa',)
 
 class PermisosSerializer(serializers.ModelSerializer):
     class Meta:
@@ -324,7 +358,7 @@ class EmpleadoSimpleSerializer(serializers.ModelSerializer):
         
 # --- [NUEVO] Serializers para los nuevos modelos ---
 class MantenimientoSerializer(serializers.ModelSerializer):
-    # Al LEER, anidamos info del activo y del empleado (read_only=True)
+    empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())    # Al LEER, anidamos info del activo y del empleado (read_only=True)
     activo = ActivoFijoSerializer(read_only=True)
     empleado_asignado = EmpleadoSimpleSerializer(read_only=True)
 
@@ -347,9 +381,18 @@ class MantenimientoSerializer(serializers.ModelSerializer):
             'activo', 'empleado_asignado',
             # Campos de escritura (IDs)
             'activo_id', 'empleado_asignado_id',
+            'empresa', # <-- AÑADIDO
         ]
         # La empresa se asigna automáticamente
-        read_only_fields = ('empresa',)
+        read_only_fields = () # <-- ELIMINADO read_only_fields
+
+class RevalorizacionActivoSerializer(serializers.ModelSerializer):
+    activo = ActivoFijoSerializer(read_only=True)
+    realizado_por = UsuarioSerializer(read_only=True)
+
+    class Meta:
+        model = RevalorizacionActivo
+        fields = '__all__'
 
 class SuscripcionSerializer(serializers.ModelSerializer):
     plan_display = serializers.CharField(source='get_plan_display', read_only=True)

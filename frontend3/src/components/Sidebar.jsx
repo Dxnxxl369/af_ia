@@ -119,7 +119,7 @@ import React from 'react';
 // Asegúrate de importar TODOS los iconos que usas
 import { 
     LayoutGrid, Users, Building2, Settings, FolderTree, ActivitySquare, 
-    Briefcase, Box, FileText, ShieldCheck, PiggyBank, Truck, MapPin, KeyRound, Wrench 
+    Briefcase, Box, FileText, ShieldCheck, PiggyBank, Truck, MapPin, KeyRound, Wrench, TrendingUp
 } from 'lucide-react';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAuth } from '../context/AuthContext'; // <-- Importa useAuth
@@ -154,19 +154,23 @@ export default function Sidebar({ isOpen, onClose, currentPage, setCurrentPage }
   const navigationContent = (
     <>
       {renderNavItemIfAllowed('dashboard', <LayoutGrid size={20} />, "Dashboard")}
-      {renderNavItemIfAllowed('activos_fijos', <Box size={20} />, "Activos Fijos")}
-      {renderNavItemIfAllowed('mantenimientos', <Wrench size={20} />, "Mantenimientos")}
-      {renderNavItemIfAllowed('departamentos', <Building2 size={20} />, "Departamentos")}
-      {renderNavItemIfAllowed('cargos', <Briefcase size={20} />, "Cargos")}
       {renderNavItemIfAllowed('empleados', <Users size={20} />, "Empleados")}
-      {renderNavItemIfAllowed('roles', <ShieldCheck size={20} />, "Roles")}
+      {renderNavItemIfAllowed('cargos', <Briefcase size={20} />, "Cargos")}
+      {renderNavItemIfAllowed('departamentos', <Building2 size={20} />, "Departamentos")}
+
+      {renderNavItemIfAllowed('activos_fijos', <Box size={20} />, "Activos Fijos")}
+      {renderNavItemIfAllowed('revalorizaciones', <TrendingUp size={20} />, "Revalorización")}
+      {renderNavItemIfAllowed('mantenimientos', <Wrench size={20} />, "Mantenimientos")}
       {renderNavItemIfAllowed('presupuestos', <PiggyBank size={20} />, "Presupuestos")}
+      {renderNavItemIfAllowed('estados', <ActivitySquare size={20} />, "Estados")}
       {renderNavItemIfAllowed('ubicaciones', <MapPin size={20} />, "Ubicaciones")}
       {renderNavItemIfAllowed('proveedores', <Truck size={20} />, "Proveedores")}
-      {renderNavItemIfAllowed('categorias', <FolderTree size={20} />, "Categorías")}
-      {renderNavItemIfAllowed('estados', <ActivitySquare size={20} />, "Estados")}
+      {renderNavItemIfAllowed('categorias', <FolderTree size={20} />, "Categorías")}      
+      
+      
+      {renderNavItemIfAllowed('roles', <ShieldCheck size={20} />, "Roles")}
+      {renderNavItemIfAllowed('permisos', <KeyRound size={20} />, "Permisos")}
       {renderNavItemIfAllowed('reportes', <FileText size={20} />, "Reportes")}
-      {renderNavItemIfAllowed('permisos', <KeyRound size={20} />, "Permisos")} 
     </>
   );
 

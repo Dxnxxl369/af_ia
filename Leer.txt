@@ -1,0 +1,28 @@
+añadir websockets bidireccional para las notificaciones en tiempo real
+
+¿Cómo se implementaría en tu proyecto (Django + React)?
+
+   1. En el Backend (Django):
+       * Se utilizaría una librería llamada Django Channels. Esta librería expande las capacidades de Django para que pueda manejar conexiones de larga duración como los WebSockets, no solo 
+         las peticiones HTTP normales.
+       * Se crearía un "Consumer" (el equivalente a una "View" pero para WebSockets). Este consumer manejaría la lógica de qué hacer cuando un usuario se conecta, se desconecta o envía un   
+         mensaje.
+       * Cuando un usuario se conecta, su sesión se "suscribiría" a un canal de notificaciones privado, único para él (ej: notificaciones_usuario_123).
+       * En el código donde actualmente se crea una Notificacion (por ejemplo, en la vista de MantenimientoViewSet), después de guardar la notificación en la base de datos, se añadiría una  
+         línea para enviar un mensaje a través de Channels al canal de ese usuario específico.
+       * El "Consumer" del usuario recibiría ese mensaje y lo enviaría inmediatamente a través del WebSocket a su navegador.
+
+   2. En el Frontend (React):
+       * En lugar de usar setInterval en el componente Header.jsx, la aplicación abriría una única conexión WebSocket al servidor cuando el usuario inicia sesión.
+       * El frontend se quedaría "escuchando" en esa conexión. No necesitaría hacer más peticiones.
+       * Cuando el servidor envía un mensaje de "nueva notificación" a través del WebSocket, el código de React lo recibiría, actualizaría el estado de las notificaciones (añadiendo la nueva a
+          la lista) y el contador de no leídas. La interfaz se actualizaría automáticamente y de forma instantánea.
+
+Ventajas de este enfoque:
+
+   * Tiempo Real Verdadero: Las notificaciones aparecen en el momento exacto en que se generan, sin la demora de hasta 1 minuto del polling.
+   * Eficiencia Extrema: Se elimina el 99% del tráfico de red inútil. En lugar de 60 peticiones por hora por usuario solo para ver si hay algo nuevo, solo habría una conexión inicial y luego
+     pequeños mensajes enviados únicamente cuando es necesario.
+   * Escalabilidad: Esta solución soporta un número mucho mayor de usuarios concurrentes, ya que el servidor no se ve sobrecargado con miles de peticiones de polling constantes.
+
+  Implementar WebSockets con Django Channels es un paso más avanzado, pero es la solución profesional y definitiva para funcionalidades en tiempo real como notificaciones o chats.

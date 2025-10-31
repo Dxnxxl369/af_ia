@@ -11,7 +11,7 @@ from .views import (
     EmpleadoViewSet, ActivoFijoViewSet, CategoriaActivoViewSet, PresupuestoViewSet, 
     RolesViewSet, LogViewSet, EstadoViewSet, UbicacionViewSet, ProveedorViewSet, PermisosViewSet,
     RegisterEmpresaView, MyTokenObtainPairView, UserPermissionsView, MantenimientoViewSet, SuscripcionViewSet, NotificacionViewSet,
-    MyThemePreferencesView, ReporteQueryView, ReporteQueryExportView
+    MyThemePreferencesView, ReporteQueryView, ReporteQueryExportView, RevalorizacionActivoViewSet
 )
 from rest_framework_simplejwt.views import TokenRefreshView
 
@@ -32,6 +32,7 @@ router.register(r'permisos', PermisosViewSet)
 router.register(r'mantenimientos', MantenimientoViewSet, basename='mantenimiento')
 router.register(r'suscripcion', SuscripcionViewSet, basename='suscripcion')
 router.register(r'notificaciones', NotificacionViewSet, basename='notificacion')
+router.register(r'revalorizaciones', RevalorizacionActivoViewSet, basename='revalorizacion')
 
 urlpatterns = [
     ##path('reportes/activos-preview/', ReporteActivosPreview.as_view(), name='reporte_activos_preview'),

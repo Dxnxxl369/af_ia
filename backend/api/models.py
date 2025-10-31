@@ -219,6 +219,27 @@ class Suscripcion(models.Model):
     def __str__(self):
         return f"Suscripción {self.get_plan_display()} de {self.empresa.nombre} ({self.get_estado_display()})"
 
+# --- [NUEVO] Modelo de Revalorización (Base de datos: 'af_saas') ---
+class RevalorizacionActivo(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='revalorizaciones')
+    activo = models.ForeignKey(ActivoFijo, on_delete=models.CASCADE, related_name='revalorizaciones')
+    
+    fecha = models.DateTimeField(auto_now_add=True)
+    valor_anterior = models.DecimalField(max_digits=12, decimal_places=2)
+    valor_nuevo = models.DecimalField(max_digits=12, decimal_places=2)
+    factor_aplicado = models.DecimalField(max_digits=10, decimal_places=6)
+    notas = models.TextField(blank=True, null=True)
+    
+    realizado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+
+    class Meta:
+        ordering = ['-fecha']
+
+    def __str__(self):
+        return f"Revalorización de {self.activo.nombre} en {self.fecha.strftime('%Y-%m-%d')}"
+
+
 # --- [NUEVO] Modelo de Notificación (Base de datos: 'af_saas') ---
 class Notificacion(models.Model):
     TIPO_CHOICES = [

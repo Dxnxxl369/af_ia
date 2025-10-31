@@ -188,6 +188,7 @@ const moduleViewPermissions = {
     'reportes': 'view_reporte',
     'settings': 'manage_settings', // Or a dedicated view_settings if created
     'mantenimientos': 'view_mantenimiento',
+    'revalorizaciones': 'view_revalorizacion',
 };
 // --- End Sidebar Mapping ---
 
