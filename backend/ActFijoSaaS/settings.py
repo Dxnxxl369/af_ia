@@ -1,4 +1,5 @@
 # ActFijoSaaS/settings.py
+import os
 from pathlib import Path
 from datetime import timedelta
 
@@ -61,25 +62,28 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'af_saas',
-        'USER': 'postgres',          # El usuario que creaste en SQL
-        'PASSWORD': 'admin123', # La que definiste en SQL
-        'HOST': 'localhost',
+        'USER': 'postgres',
+        # ¡ARREGLO! Lee la contraseña de las variables de entorno
+        'PASSWORD': os.environ.get('DB_PASSWORD'), 
+        'HOST': os.environ.get('DB_HOST'),
         'PORT': '5432',
     },
     'log_saas': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'log_saas', # El nombre de la BD que creaste en el Paso 1
-        'USER': 'postgres',   # Puedes usar el mismo usuario por ahora
-        'PASSWORD': 'admin123',
-        'HOST': 'localhost',
+        'NAME': 'log_saas',
+        'USER': 'postgres',
+        # ¡ARREGLO! Lee la contraseña de las variables de entorno
+        'PASSWORD': os.environ.get('DB_PASSWORD'),
+        'HOST': os.environ.get('DB_HOST'),
         'PORT': '5432',
     },
     'analytics_saas': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'analytics_saas', # Asegúrate de crear esta BD en PostgreSQL
+        'NAME': 'analytics_saas',
         'USER': 'postgres',
-        'PASSWORD': 'admin123',
-        'HOST': 'localhost',
+        # ¡ARREGLO! Lee la contraseña de las variables de entorno
+        'PASSWORD': os.environ.get('DB_PASSWORD'),
+        'HOST': os.environ.get('DB_HOST'),
         'PORT': '5432',
     }
 }

@@ -1,0 +1,48 @@
+services:
+  
+  # --- SERVICIO 1: BACKEND (PYTHON) ---
+  backend:
+    build:
+      # Busca el 'dockerfile' dentro de la carpeta 'backend'
+      context: ./backend
+      dockerfile: dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      # Sincroniza la carpeta local 'backend' con '/app' en el contenedor
+      - ./backend:/app
+    environment:
+      - DB_HOST=db
+      - DB_NAME=af_saas                 # <-- Corregido al nombre de tu BD
+      - DB_USER=postgres
+      - DB_PASSWORD=empresa123          # <-- Tu contraseña real
+    depends_on:
+      - db
+
+  # --- SERVICIO 2: FRONTEND (NODE.JS) ---
+  frontend:
+    image: node:25-alpine
+    # 1. El directorio de trabajo será /app
+    working_dir: /app
+    volumes:
+      # 2. Montamos tu carpeta 'frontend3' en /app
+      - ./frontend3:/app
+    ports:
+      - "5173:5173"
+    # 3. El comando ahora correrá en /app y SÍ encontrará el package.json
+    command: sh -c "npm install && npm run dev"
+
+  # --- SERVICIO 3: BASE DE DATOS (POSTGRESQL) ---
+  db:
+    image: postgres:16-alpine
+    volumes:
+      # Usa un volumen nombrado para tu nuevo proyecto
+      - af_ia_postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=af_saas             # <-- Corregido (debe coincidir con DB_NAME)
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=empresa123      # <-- Tu contraseña real (debe coincidir con DB_PASSWORD)
+
+# Define el volumen nombrado
+volumes:
+  af_ia_postgres_data:
