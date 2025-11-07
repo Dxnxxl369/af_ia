@@ -59,33 +59,60 @@ WSGI_APPLICATION = 'ActFijoSaaS.wsgi.application'
 
 # --- CONFIGURACIÓN DE BASE DE DATOS (POSTGRESQL) ---
 DATABASES = {
-    'default': {
+    'default': { # af_saas
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'af_saas',
-        'USER': 'postgres',          # El usuario que creaste en SQL
-        'PASSWORD': '12345', # La que definiste en SQL
-        'HOST': 'localhost',
+        'NAME': 'bpsk0qzex0oykpbd43e7',
+        'USER': 'ullcm4yhykn1qwg9ejlw',
+        'PASSWORD': 'vUG8veWdxT7HYAR8e0kMZlcdxHKbjE', 
+        'HOST': 'bpsk0qzex0oykpbd43e7-postgresql.services.clever-cloud.com',
         'PORT': '5432',
         'OPTIONS': {'client_encoding': 'UTF8'},
     },
-    'log_saas': {
+    'log_saas': { # log_saas
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'log_saas', # El nombre de la BD que creaste en el Paso 1
-        'USER': 'postgres',   # Puedes usar el mismo usuario por ahora
-        'PASSWORD': '12345',
-        'HOST': 'localhost',
-        'PORT': '5432',
+        'NAME': 'bgo394ouzgthw6iqxefm', 
+        'USER': 'u6tejgkzisrchn15i28e',   
+        'PASSWORD': 'ZkstNygDtCAWm6WiBkysHVj5wjgp5s',
+        'HOST': 'bgo394ouzgthw6iqxefm-postgresql.services.clever-cloud.com',
+        'PORT': '50013',
         'OPTIONS': {'client_encoding': 'UTF8'},
     },
-    'analytics_saas': {
+    'analytics_saas': { # analytics_saas
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'analytics_saas', # Asegúrate de crear esta BD en PostgreSQL
-        'USER': 'postgres',
-        'PASSWORD': '12345',
-        'HOST': 'localhost',
-        'PORT': '5432',
+        'NAME': 'b1tfpg0vm7xlughk4x5m', 
+        'USER': 'u4vkw157yrlx3oz4orfr',
+        'PASSWORD': '2z8SzpzJb0QnukcVk6curhuxTuDUHV',
+        'HOST': 'b1tfpg0vm7xlughk4x5m-postgresql.services.clever-cloud.com',
+        'PORT': '50013',
         'OPTIONS': {'client_encoding': 'UTF8'},
     }
+    # 'default': {
+    #     'ENGINE': 'django.db.backends.postgresql',
+    #     'NAME': 'af_saas',
+    #     'USER': 'postgres',          # El usuario que creaste en SQL
+    #     'PASSWORD': '12345', # La que definiste en SQL
+    #     'HOST': 'localhost',
+    #     'PORT': '5432',
+    #     'OPTIONS': {'client_encoding': 'UTF8'},
+    # },
+    # 'log_saas': {
+    #     'ENGINE': 'django.db.backends.postgresql',
+    #     'NAME': 'log_saas', # El nombre de la BD que creaste en el Paso 1
+    #     'USER': 'postgres',   # Puedes usar el mismo usuario por ahora
+    #     'PASSWORD': '12345',
+    #     'HOST': 'localhost',
+    #     'PORT': '5432',
+    #     'OPTIONS': {'client_encoding': 'UTF8'},
+    # },
+    # 'analytics_saas': {
+    #     'ENGINE': 'django.db.backends.postgresql',
+    #     'NAME': 'analytics_saas', # Asegúrate de crear esta BD en PostgreSQL
+    #     'USER': 'postgres',
+    #     'PASSWORD': '12345',
+    #     'HOST': 'localhost',
+    #     'PORT': '5432',
+    #     'OPTIONS': {'client_encoding': 'UTF8'},
+    # }
 }
 
 # ... (Validadores de contraseña sin cambios)
