@@ -16,7 +16,7 @@ from api.models import (
     TipoDepreciacion, DepreciacionActivos, DisposicionActivos, Impuestos, Log
 )
 
-PASSWORD = "empresa123"
+PASSWORD = "admin123"
 
 class Command(BaseCommand):
     help = """Limpia y puebla la base de datos con datos de ejemplo coherentes con el nuevo esquema."""

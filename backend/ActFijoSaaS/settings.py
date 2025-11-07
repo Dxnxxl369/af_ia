@@ -72,7 +72,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'log_saas', # El nombre de la BD que creaste en el Paso 1
         'USER': 'postgres',   # Puedes usar el mismo usuario por ahora
-        'PASSWORD': 'admin123',
+        'PASSWORD': '12345',
         'HOST': 'localhost',
         'PORT': '5432',
         'OPTIONS': {'client_encoding': 'UTF8'},
@@ -81,7 +81,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'analytics_saas', # Asegúrate de crear esta BD en PostgreSQL
         'USER': 'postgres',
-        'PASSWORD': 'admin123',
+        'PASSWORD': '12345',
         'HOST': 'localhost',
         'PORT': '5432',
         'OPTIONS': {'client_encoding': 'UTF8'},
