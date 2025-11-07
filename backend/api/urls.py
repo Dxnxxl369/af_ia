@@ -8,9 +8,9 @@ from django.conf.urls.static import static
 
 from .views import (
     ReporteActivosPreview, ReporteActivosExport, CargoViewSet, DepartamentoViewSet,
-    EmpleadoViewSet, ActivoFijoViewSet, CategoriaActivoViewSet, PresupuestoViewSet, 
+    EmpleadoViewSet, ActivoFijoViewSet, PresupuestoViewSet, 
     RolesViewSet, LogViewSet, EstadoViewSet, UbicacionViewSet, ProveedorViewSet, PermisosViewSet,
-    RegisterEmpresaView, MyTokenObtainPairView, UserPermissionsView, MantenimientoViewSet, SuscripcionViewSet, NotificacionViewSet,
+    RegisterEmpresaView, MyTokenObtainPairView, UserPermissionsView, MantenimientoViewSet, OrdenesCompraViewSet, SuscripcionViewSet, NotificacionViewSet, ItemCatalogoViewSet, InventarioViewSet, MovimientoInventarioViewSet,
     MyThemePreferencesView, ReporteQueryView, ReporteQueryExportView, RevalorizacionActivoViewSet
 )
 from rest_framework_simplejwt.views import TokenRefreshView
@@ -23,16 +23,18 @@ router.register(r'activos-fijos', ActivoFijoViewSet)
 router.register(r'presupuestos', PresupuestoViewSet)
 router.register(r'roles', RolesViewSet)
 router.register(r'logs', LogViewSet, basename='log')
-router.register(r'categorias-activos', CategoriaActivoViewSet)
 router.register(r'estados', EstadoViewSet)
 router.register(r'ubicaciones', UbicacionViewSet)
 router.register(r'proveedores', ProveedorViewSet)
 router.register(r'permisos', PermisosViewSet)
-# --- [NUEVO] Registrar las nuevas rutas ---
 router.register(r'mantenimientos', MantenimientoViewSet, basename='mantenimiento')
+router.register(r'ordenes-compra', OrdenesCompraViewSet, basename='orden_compra')
 router.register(r'suscripcion', SuscripcionViewSet, basename='suscripcion')
 router.register(r'notificaciones', NotificacionViewSet, basename='notificacion')
 router.register(r'revalorizaciones', RevalorizacionActivoViewSet, basename='revalorizacion')
+router.register(r'items-catalogo', ItemCatalogoViewSet, basename='item_catalogo')
+router.register(r'inventarios', InventarioViewSet, basename='inventario')
+router.register(r'movimientos-inventario', MovimientoInventarioViewSet, basename='movimiento_inventario')
 
 urlpatterns = [
     ##path('reportes/activos-preview/', ReporteActivosPreview.as_view(), name='reporte_activos_preview'),
@@ -48,7 +50,6 @@ urlpatterns = [
     path('me/theme/', MyThemePreferencesView.as_view(), name='my_theme_preferences'),
 ]
 
-# --- [NUEVO] Añadir esto al final del archivo ---
 # Sirve los archivos de MEDIA (fotos subidas) SOLO en modo DEBUG
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -7,7 +7,7 @@ import io
 from django.http import HttpResponse, Http404
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.decorators import action # <-- Importar action
+from rest_framework.decorators import action
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
@@ -15,14 +15,18 @@ from reportlab.lib.units import inch
 from openpyxl import Workbook
 from openpyxl.styles import Font
 from .models import *
-from .serializers import * # Importa todos los serializers
+from .serializers import *
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 import logging
 from django.db.models import Q
 import re
 from datetime import datetime
+from django.db import transaction
 from .report_utils import create_excel_report, create_pdf_report
+from .filters import ActivoFijoFilter, ProveedorFilter, EmpleadoFilter, MantenimientoFilter, OrdenesCompraFilter, ItemCatalogoFilter, InventarioFilter, MovimientoInventarioFilter, PresupuestoFilter, UbicacionFilter, EstadoFilter # <-- NUEVA IMPORTACIÓN
+from rest_framework.filters import SearchFilter
+from django_filters.rest_framework import DjangoFilterBackend
 from decimal import Decimal, InvalidOperation
 logger = logging.getLogger(__name__)
 
@@ -114,7 +118,6 @@ class MyThemePreferencesView(APIView):
              print(f"ERROR en MyThemePreferencesView.patch: {e}")
              return Response({"detail": "Error interno."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)        
         
-# --- VISTA DE LOGIN PERSONALIZADA ---
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
 
@@ -235,8 +238,6 @@ class BaseTenantLimitViewSet(BaseTenantViewSet):
         # Si todo está bien (o no hay límites definidos), procede con la creación normal
         return super().create(request, *args, **kwargs)
     
-
-# --- VIEWSETS DE LA APLICACIÓN ---
 class CargoViewSet(BaseTenantViewSet):
     queryset = Cargo.objects.all()
     serializer_class = CargoSerializer
@@ -293,7 +294,7 @@ class DepartamentoViewSet(BaseTenantViewSet):
 #             print("ERROR: serializer.instance not found after perform_create")
 #             return Response({"detail":"Error creating employee instance."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-class EmpleadoViewSet(BaseTenantLimitViewSet): # <-- [EDITADO] Hereda de BaseTenantLimitViewSet
+class EmpleadoViewSet(BaseTenantLimitViewSet):
     queryset = Empleado.objects.all().select_related('usuario', 'cargo', 'departamento').prefetch_related('roles')
     serializer_class = EmpleadoSerializer
     required_manage_permission = 'manage_empleado'
@@ -302,42 +303,66 @@ class EmpleadoViewSet(BaseTenantLimitViewSet): # <-- [EDITADO] Hereda de BaseTen
     model_to_count = Empleado
     model_limit_field = 'max_usuarios'
 
+    # --- CONFIGURACIÓN DE FILTROS Y BÚSQUEDA ---
+    filterset_class = EmpleadoFilter
+    filter_backends = (DjangoFilterBackend, SearchFilter)
+    search_fields = ['usuario__first_name', 'apellido_p', 'apellido_m', 'ci', 'usuario__email']
+
 class ActivoFijoViewSet(BaseTenantViewSet):
     queryset = ActivoFijo.objects.all()
     serializer_class = ActivoFijoSerializer
     required_manage_permission = 'manage_activofijo'
 
+    # --- CONFIGURACIÓN DE FILTROS Y BÚSQUEDA ---
+    # Usa la clase de filtro personalizado que creamos en api/filters.py
+    filterset_class = ActivoFijoFilter
+    # Añade el backend de Búsqueda general de DRF
+    filter_backends = (DjangoFilterBackend, SearchFilter)
+    # Define los campos sobre los que actuará el parámetro ?search=
+    search_fields = ['nombre', 'codigo_interno', 'serial']
+
 class PresupuestoViewSet(BaseTenantViewSet):
     queryset = Presupuesto.objects.all()
     serializer_class = PresupuestoSerializer
-    # Apply the custom permission check for non-GET requests
-    #permission_classes = [IsAuthenticated, HasPermission('manage_presupuesto')]
     required_manage_permission = 'manage_presupuesto'
+
+    # --- CONFIGURACIÓN DE FILTROS Y BÚSQUEDA ---
+    filterset_class = PresupuestoFilter
+    filter_backends = (DjangoFilterBackend, SearchFilter)
+    search_fields = ['descripcion', 'departamento__nombre']
 
 class RolesViewSet(BaseTenantViewSet):
     queryset = Roles.objects.all()
     serializer_class = RolesSerializer
     required_manage_permission = 'manage_rol'
 
-class CategoriaActivoViewSet(BaseTenantViewSet):
-    queryset = CategoriaActivo.objects.all()
-    serializer_class = CategoriaActivoSerializer
-    required_manage_permission = 'manage_categoriaactivo'
-
 class EstadoViewSet(BaseTenantViewSet):
     queryset = Estado.objects.all()
     serializer_class = EstadoSerializer
     required_manage_permission = 'manage_estadoactivo'
+    # --- CONFIGURACIÓN DE FILTROS Y BÚSQUEDA ---
+    filterset_class = EstadoFilter
+    filter_backends = (DjangoFilterBackend, SearchFilter)
+    search_fields = ['nombre']
 
 class UbicacionViewSet(BaseTenantViewSet):
     queryset = Ubicacion.objects.all()
     serializer_class = UbicacionSerializer
     required_manage_permission = 'manage_ubicacion'
+    # --- CONFIGURACIÓN DE FILTROS Y BÚSQUEDA ---
+    filterset_class = UbicacionFilter
+    filter_backends = (DjangoFilterBackend, SearchFilter)
+    search_fields = ['nombre', 'direccion']
 
 class ProveedorViewSet(BaseTenantViewSet):
     queryset = Proveedor.objects.all()
     serializer_class = ProveedorSerializer
     required_manage_permission = 'manage_proveedor'
+
+    # --- CONFIGURACIÓN DE FILTROS Y BÚSQUEDA ---
+    filterset_class = ProveedorFilter
+    filter_backends = (DjangoFilterBackend, SearchFilter)
+    search_fields = ['nombre', 'nit', 'email']
 
 class PermisosViewSet(viewsets.ModelViewSet): 
     """
@@ -355,7 +380,6 @@ class PermisosViewSet(viewsets.ModelViewSet):
             permission_classes = [IsAdminUser]
         return [permission() for permission in permission_classes]
 
-# --- NUEVO VIEWSET PARA LA BITÁCORA/LOG ---
 class LogViewSet(viewsets.ModelViewSet):
     """
     ViewSet para recibir y guardar registros de log desde el frontend.
@@ -475,8 +499,6 @@ class ReporteActivosPreview(APIView):
              logger.error(f"ReporteActivosPreview Error: {e}", exc_info=True)
              return Response({"detail": "Error al generar vista previa."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
-# --- VISTA DE REPORTE EXPORT (ESTÁTICA) ---
 class ReporteActivosExport(APIView):
     """
     Exporta el reporte original (filtros de formulario) a PDF o Excel.
@@ -526,97 +548,96 @@ class ReporteActivosExport(APIView):
              return Response({"detail": f"Error interno al generar el reporte: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-# --- FUNCIÓN HELPER PARA REPORTE DINÁMICO ---
-def parse_and_build_query(filters_list, base_queryset):
-    """
-    Toma una lista de strings de filtro (ej: ["depto:TI", "laptop", "valor>500"])
-    y la convierte en un queryset de Django filtrado.
-    """
-    query = base_queryset
-    
-    # Mapeo de claves a campos base del modelo ActivoFijo
-    field_mapping = {
-        'depto': 'departamento__nombre',
-        'categoria': 'categoria__nombre',
-        'ubicacion': 'ubicacion__nombre',
-        'estado': 'estado__nombre',
-        'proveedor': 'proveedor__nombre',
-        'nombre': 'nombre',
-        'codigo': 'codigo_interno',
-        'valor': 'valor_actual',
-        'fecha_adq': 'fecha_adquisicion',
-    }
+    # --- FUNCIÓN HELPER PARA REPORTE DINÁMICO ---
+    def parse_and_build_query(filters_list, base_queryset):
+        """
+        Toma una lista de strings de filtro (ej: ["depto:TI", "laptop", "valor>500"])
+        y la convierte en un queryset de Django filtrado.
+        """
+        query = base_queryset
+        
+        # Mapeo de claves a campos base del modelo ActivoFijo
+        field_mapping = {
+            'depto': 'departamento__nombre',
+            'categoria': 'categoria__nombre',
+            'ubicacion': 'ubicacion__nombre',
+            'estado': 'estado__nombre',
+            'proveedor': 'proveedor__nombre',
+            'nombre': 'nombre',
+            'codigo': 'codigo_interno',
+            'valor': 'valor_actual',
+            'fecha_adq': 'fecha_adquisicion',
+        }
 
-    # Mapeo de operadores de texto/numéricos a suffixes de Django ORM
-    operator_mapping = {
-        ':': '__icontains', # Búsqueda de texto flexible (contiene, sin mayúsculas)
-        '>': '__gt',        # Mayor que
-        '<': '__lt',        # Menor que
-        '=': '__exact',     # Coincidencia exacta
-    }
+        # Mapeo de operadores de texto/numéricos a suffixes de Django ORM
+        operator_mapping = {
+            ':': '__icontains', # Búsqueda de texto flexible (contiene, sin mayúsculas)
+            '>': '__gt',        # Mayor que
+            '<': '__lt',        # Menor que
+            '=': '__exact',     # Coincidencia exacta
+        }
 
-    q_objects = Q() # Inicializa un objeto Q vacío (para combinar filtros con AND)
+        q_objects = Q() # Inicializa un objeto Q vacío (para combinar filtros con AND)
 
-    for f in filters_list:
-        try:
-            f = f.strip()
-            if not f: continue # Ignorar filtros vacíos
+        for f in filters_list:
+            try:
+                f = f.strip()
+                if not f: continue # Ignorar filtros vacíos
 
-            # --- NUEVA LÓGICA DE PARSEO ---
-            # Intenta encontrar un patrón como "clave:valor", "clave>valor", "clave < valor"
-            # Regex: (clave) (espacios) (operador) (espacios) (valor)
-            match = re.match(r'([\w_]+)\s*([:<>])\s*(.+)', f)
-            
-            if match:
-                # --- Filtro Estructurado (ej: "depto: TI", "valor > 1000") ---
-                key, operator, value = match.groups()
-                key = key.lower().strip()
-                operator = operator.strip()
-                value = value.strip()
+                # --- NUEVA LÓGICA DE PARSEO ---
+                # Intenta encontrar un patrón como "clave:valor", "clave>valor", "clave < valor"
+                # Regex: (clave) (espacios) (operador) (espacios) (valor)
+                match = re.match(r'([\w_]+)\s*([:<>])\s*(.+)', f)
                 
-                # Verificar si la clave y el operador son válidos
-                if key in field_mapping and operator in operator_mapping:
-                    # Construir el nombre completo del campo ORM (ej: 'valor_actual__gt')
-                    orm_field = field_mapping[key] + operator_mapping[operator]
+                if match:
+                    # --- Filtro Estructurado (ej: "depto: TI", "valor > 1000") ---
+                    key, operator, value = match.groups()
+                    key = key.lower().strip()
+                    operator = operator.strip()
+                    value = value.strip()
                     
-                    # Convertir valor si es numérico o fecha
-                    if operator in ['>', '<', '='] and key in ['valor', 'fecha_adq']:
-                        try:
-                            if key == 'valor':
-                                value = float(value) # Convertir a número
-                            elif key == 'fecha_adq':
-                                # Asumir formato YYYY-MM-DD
-                                value = datetime.strptime(value, '%Y-%m-%d').date()
-                        except ValueError:
-                            logger.warn(f"Filtro ignorado: Valor para '{key}{operator}' no es válido: '{value}'")
-                            continue # Saltar este filtro
-                    
-                    # Añadir al query (ej: Q(valor_actual__gt=1000))
-                    q_objects &= Q(**{orm_field: value})
+                    # Verificar si la clave y el operador son válidos
+                    if key in field_mapping and operator in operator_mapping:
+                        # Construir el nombre completo del campo ORM (ej: 'valor_actual__gt')
+                        orm_field = field_mapping[key] + operator_mapping[operator]
+                        
+                        # Convertir valor si es numérico o fecha
+                        if operator in ['>', '<', '='] and key in ['valor', 'fecha_adq']:
+                            try:
+                                if key == 'valor':
+                                    value = float(value) # Convertir a número
+                                elif key == 'fecha_adq':
+                                    # Asumir formato YYYY-MM-DD
+                                    value = datetime.strptime(value, '%Y-%m-%d').date()
+                            except ValueError:
+                                logger.warn(f"Filtro ignorado: Valor para '{key}{operator}' no es válido: '{value}'")
+                                continue # Saltar este filtro
+                        
+                        # Añadir al query (ej: Q(valor_actual__gt=1000))
+                        q_objects &= Q(**{orm_field: value})
+                    else:
+                        logger.warn(f"Filtro ignorado: Clave '{key}' u operador '{operator}' no reconocidos.")
+
+                # --- Filtro de Texto Simple (ej: "laptop", "finanzas") ---
                 else:
-                    logger.warn(f"Filtro ignorado: Clave '{key}' u operador '{operator}' no reconocidos.")
+                    # Si no es un filtro estructurado, buscar el texto en MÚLTIPLES campos
+                    q_objects &= (
+                        Q(nombre__icontains=f) | 
+                        Q(codigo_interno__icontains=f) |
+                        Q(departamento__nombre__icontains=f) |
+                        Q(categoria__nombre__icontains=f) |
+                        Q(ubicacion__nombre__icontains=f) |
+                        Q(estado__nombre__icontains=f) |
+                        Q(proveedor__nombre__icontains=f)
+                    )
+            except Exception as e:
+                # Ignorar filtros malformados (ej: "valor>abc")
+                logger.warn(f"Report Query: Ignorando filtro malformado: '{f}'. Error: {e}")
+                pass
+                
+        # Aplicar todos los filtros combinados (Q objects) al queryset
+        return query.filter(q_objects).distinct()
 
-            # --- Filtro de Texto Simple (ej: "laptop", "finanzas") ---
-            else:
-                # Si no es un filtro estructurado, buscar el texto en MÚLTIPLES campos
-                q_objects &= (
-                    Q(nombre__icontains=f) | 
-                    Q(codigo_interno__icontains=f) |
-                    Q(departamento__nombre__icontains=f) |
-                    Q(categoria__nombre__icontains=f) |
-                    Q(ubicacion__nombre__icontains=f) |
-                    Q(estado__nombre__icontains=f) |
-                    Q(proveedor__nombre__icontains=f)
-                )
-        except Exception as e:
-            # Ignorar filtros malformados (ej: "valor>abc")
-            logger.warn(f"Report Query: Ignorando filtro malformado: '{f}'. Error: {e}")
-            pass
-            
-    # Aplicar todos los filtros combinados (Q objects) al queryset
-    return query.filter(q_objects).distinct()
-
-# --- VISTA DE REPORTE DINÁMICO (PREVIEW) ---
 class ReporteQueryView(APIView):
     """
     Recibe filtros dinámicos (POST) y devuelve una vista previa JSON.
@@ -661,9 +682,7 @@ class ReporteQueryView(APIView):
             logger.error(f"Report Query Error: {e}", exc_info=True)
             return Response({"detail": f"Error al procesar la consulta: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
-# --- VISTA DE REPORTE DINÁMICO (EXPORT) ---
-class ReporteQueryExportView(ReporteQueryView): # Hereda get_base_queryset
+class ReporteQueryExportView(ReporteQueryView):
     """
     Recibe filtros dinámicos y formato (POST) y devuelve un archivo PDF/Excel
     usando las funciones de report_utils.py
@@ -702,12 +721,15 @@ class ReporteQueryExportView(ReporteQueryView): # Hereda get_base_queryset
             logger.error(f"Report Query Export Error: {e}", exc_info=True)
             return Response({"detail": f"Error al exportar: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
                 
-from django.db import transaction
-
 class MantenimientoViewSet(BaseTenantViewSet):
     queryset = Mantenimiento.objects.all().select_related('activo', 'empleado_asignado__usuario') # Optimizar query
     serializer_class = MantenimientoSerializer
     required_manage_permission = 'manage_mantenimiento'
+
+    # --- CONFIGURACIÓN DE FILTROS Y BÚSQUEDA ---
+    filterset_class = MantenimientoFilter
+    filter_backends = (DjangoFilterBackend, SearchFilter)
+    search_fields = ['activo__nombre', 'activo__codigo_interno', 'descripcion_problema', 'notas_solucion']
 
     @action(detail=True, methods=['patch'], permission_classes=[IsAuthenticated]) # No necesita permiso especial aquí, validamos adentro
     def actualizar_estado(self, request, pk=None):
@@ -818,6 +840,21 @@ class MantenimientoViewSet(BaseTenantViewSet):
         # Por simplicidad, notificamos siempre que haya alguien asignado tras guardar.
         self._crear_notificacion_asignacion(mantenimiento)
 
+class OrdenesCompraViewSet(BaseTenantViewSet):
+    queryset = OrdenesCompra.objects.all().select_related('proveedor', 'solicitante__usuario')
+    serializer_class = OrdenesCompraSerializer
+    required_manage_permission = 'manage_orden_compra' # Necesitarás crear este permiso
+
+class ItemCatalogoViewSet(BaseTenantViewSet):
+    queryset = ItemCatalogo.objects.all()
+    serializer_class = ItemCatalogoSerializer
+    required_manage_permission = 'manage_item_catalogo' # Necesitarás crear este permiso
+
+    # --- CONFIGURACIÓN DE FILTROS Y BÚSQUEDA ---
+    filterset_class = OrdenesCompraFilter
+    filter_backends = (DjangoFilterBackend, SearchFilter)
+    search_fields = ['id', 'proveedor__nombre', 'solicitante__usuario__first_name', 'condiciones']
+
 class RevalorizacionActivoViewSet(BaseTenantViewSet):
     queryset = RevalorizacionActivo.objects.all()
     serializer_class = RevalorizacionActivoSerializer
@@ -917,6 +954,33 @@ class RevalorizacionActivoViewSet(BaseTenantViewSet):
         except Exception as e:
             logger.error(f"Error en RevalorizacionActivoViewSet.ejecutar: {e}", exc_info=True)
             return Response({'detail': f'Error interno del servidor: {e}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class ItemCatalogoViewSet(BaseTenantViewSet):
+    queryset = ItemCatalogo.objects.all()
+    serializer_class = ItemCatalogoSerializer
+    required_manage_permission = 'manage_item_catalogo' # Necesitarás crear este permiso
+    # --- CONFIGURACIÓN DE FILTROS Y BÚSQUEDA ---
+    filterset_class = ItemCatalogoFilter
+    filter_backends = (DjangoFilterBackend, SearchFilter)
+    search_fields = ['nombre', 'tipo_item']
+
+class InventarioViewSet(BaseTenantViewSet):
+    queryset = Inventario.objects.all().select_related('ubicacion', 'item_catalogo', 'responsable__usuario')
+    serializer_class = InventarioSerializer
+    required_manage_permission = 'manage_inventario' # Necesitarás crear este permiso
+    # --- CONFIGURACIÓN DE FILTROS Y BÚSQUEDA ---
+    filterset_class = InventarioFilter
+    filter_backends = (DjangoFilterBackend, SearchFilter)
+    search_fields = ['item_catalogo__nombre', 'ubicacion__nombre']
+
+class MovimientoInventarioViewSet(BaseTenantViewSet):
+    queryset = MovimientoInventario.objects.all().select_related('inventario__item_catalogo')
+    serializer_class = MovimientoInventarioSerializer
+    required_manage_permission = 'manage_inventario' # Permiso de inventario general
+    # --- CONFIGURACIÓN DE FILTROS Y BÚSQUEDA ---
+    filterset_class = MovimientoInventarioFilter
+    filter_backends = (DjangoFilterBackend, SearchFilter)
+    search_fields = ['descripcion']
 
 
 class SuscripcionViewSet(BaseTenantViewSet):

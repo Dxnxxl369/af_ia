@@ -8,12 +8,34 @@ PERMISSIONS_LIST = [
     # General
     ('view_dashboard', 'Ver el Dashboard principal'),
     
-    # Activos Fijos
+    # Activos Fijos y su ciclo de vida
     ('view_activofijo', 'Ver la lista de activos fijos'),
     ('manage_activofijo', 'Crear, editar y eliminar activos fijos'),
-    ('assign_activofijo', 'Asignar activos fijos a empleados/ubicaciones'),
-    
-    # Organización
+    ('view_revalorizacion', 'Ver el historial de revalorizaciones de activos'),
+    ('manage_revalorizacion', 'Ejecutar el proceso de revalorización de activos'),
+    ('view_depreciacion', 'Ver el historial de depreciaciones de activos'),
+    ('manage_depreciacion', 'Ejecutar el proceso de depreciación de activos'),
+    ('view_disposicion', 'Ver las disposiciones (bajas) de activos'),
+    ('manage_disposicion', 'Ejecutar la baja de un activo'),
+
+    # Compras y Presupuestos
+    ('view_presupuesto', 'Ver los presupuestos asignados'),
+    ('manage_presupuesto', 'Crear, editar y eliminar presupuestos'),
+    ('view_ordencompra', 'Ver la lista de órdenes de compra'),
+    ('manage_ordencompra', 'Crear, editar y aprobar órdenes de compra'),
+
+    # Inventario y Catálogo
+    ('view_inventario', 'Ver el estado del inventario'),
+    ('manage_inventario', 'Crear items de inventario y registrar movimientos'),
+    ('view_itemcatalogo', 'Ver el catálogo de items'),
+    ('manage_itemcatalogo', 'Crear y editar items en el catálogo'),
+
+    # Mantenimiento
+    ('view_mantenimiento', 'Ver la lista de mantenimientos'),
+    ('manage_mantenimiento', 'Crear, editar y gestionar mantenimientos'),
+    ('update_assigned_mantenimiento', 'Actualizar estado/notas de mantenimientos asignados'),
+
+    # Organización y Empleados
     ('view_departamento', 'Ver la lista de departamentos'),
     ('manage_departamento', 'Crear, editar y eliminar departamentos'),
     ('view_cargo', 'Ver la lista de cargos'),
@@ -25,45 +47,28 @@ PERMISSIONS_LIST = [
     ('view_rol', 'Ver la lista de roles de la empresa'),
     ('manage_rol', 'Crear, editar y eliminar roles (y asignar permisos)'),
     ('view_permiso', 'Ver la lista de permisos globales (para asignar a roles)'),
-    
-    # Finanzas
-    ('view_presupuesto', 'Ver los presupuestos asignados'),
-    ('manage_presupuesto', 'Crear, editar y eliminar presupuestos'),
-    
-    # Configuración Activos
+
+    # Configuración General
     ('view_ubicacion', 'Ver la lista de ubicaciones'),
     ('manage_ubicacion', 'Crear, editar y eliminar ubicaciones'),
     ('view_proveedor', 'Ver la lista de proveedores'),
     ('manage_proveedor', 'Crear, editar y eliminar proveedores'),
-    ('view_categoriaactivo', 'Ver las categorías de activos'),
-    ('manage_categoriaactivo', 'Crear, editar y eliminar categorías de activos'),
     ('view_estadoactivo', 'Ver los estados de activos'),
     ('manage_estadoactivo', 'Crear, editar y eliminar estados de activos'),
-    
-    # Reportes
+    ('view_divisa', 'Ver la lista de divisas globales'),
+    ('manage_divisa', 'Crear y editar divisas globales'),
+    ('view_impuestos', 'Ver la lista de impuestos globales'),
+    ('manage_impuestos', 'Crear y editar impuestos globales'),
+    ('view_tipodepreciacion', 'Ver los tipos de depreciación'),
+    ('manage_tipodepreciacion', 'Crear y editar tipos de depreciación'),
+
+    # Reportes y Sistema
     ('view_reporte', 'Acceder a la sección de reportes y generar vistas previas'),
     ('export_reporte', 'Exportar reportes a PDF/Excel'),
-
-    # --- [NUEVO] Permisos de Revalorización ---
-    ('view_revalorizacion', 'Ver el historial de revalorizaciones de activos'),
-    ('manage_revalorizacion', 'Ejecutar el proceso de revalorización de activos'),
-    
-    # --- [NUEVO] Permisos de Mantenimiento ---
-    ('view_mantenimiento', 'Ver la lista de mantenimientos'),
-    ('manage_mantenimiento', 'Crear, editar y gestionar mantenimientos'),
-    ('update_assigned_mantenimiento', 'Actualizar estado/notas de mantenimientos asignados (Empleado)'), # <-- NUEVO
-    
-    
-    # --- [NUEVO] Permisos de Suscripción ---
     ('view_suscripcion', 'Ver el plan de suscripción actual de la empresa'),
     ('manage_suscripcion', 'Cambiar o actualizar el plan de suscripción (Admin)'),
-    
-    # Sistema
-    ('view_log', 'Ver la bitácora de acciones'),
+    ('view_log', 'Ver la bitácora de acciones del sistema'),
     ('manage_settings', 'Acceder a la configuración general del sistema'),
-    
-    # Permiso obsoleto de tu seed_data (lo elimino)
-    # ('manage_permiso', 'Crear, editar, eliminar permisos globales (SOLO SUPERADMIN)'),
 ]
 
 class Command(BaseCommand):

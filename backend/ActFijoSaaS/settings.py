@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    'django_filters',
     # --- NUESTRA APP ---
     'api',
 ]
@@ -62,9 +63,10 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'af_saas',
         'USER': 'postgres',          # El usuario que creaste en SQL
-        'PASSWORD': 'admin123', # La que definiste en SQL
+        'PASSWORD': '12345', # La que definiste en SQL
         'HOST': 'localhost',
         'PORT': '5432',
+        'OPTIONS': {'client_encoding': 'UTF8'},
     },
     'log_saas': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -73,6 +75,7 @@ DATABASES = {
         'PASSWORD': 'admin123',
         'HOST': 'localhost',
         'PORT': '5432',
+        'OPTIONS': {'client_encoding': 'UTF8'},
     },
     'analytics_saas': {
         'ENGINE': 'django.db.backends.postgresql',
@@ -81,6 +84,7 @@ DATABASES = {
         'PASSWORD': 'admin123',
         'HOST': 'localhost',
         'PORT': '5432',
+        'OPTIONS': {'client_encoding': 'UTF8'},
     }
 }
 
@@ -107,6 +111,9 @@ MEDIA_ROOT = BASE_DIR / 'mediafiles'
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_FILTER_BACKENDS': (
+        'django_filters.rest_framework.DjangoFilterBackend',
     )
 }
 

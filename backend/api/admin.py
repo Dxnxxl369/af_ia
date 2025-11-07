@@ -59,8 +59,8 @@ class RolesAdmin(admin.ModelAdmin):
 
 @admin.register(ActivoFijo)
 class ActivoFijoAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'codigo_interno', 'empresa', 'categoria', 'estado')
-    list_filter = ('empresa', 'categoria', 'estado')
+    list_display = ('nombre', 'codigo_interno', 'empresa', 'estado')
+    list_filter = ('empresa', 'estado')
 
 @admin.register(Proveedor)
 class ProveedorAdmin(admin.ModelAdmin):
@@ -69,14 +69,13 @@ class ProveedorAdmin(admin.ModelAdmin):
 
 @admin.register(Presupuesto)
 class PresupuestoAdmin(admin.ModelAdmin):
-    list_display = ('descripcion', 'departamento', 'monto', 'fecha', 'empresa')
-    list_filter = ('empresa', 'departamento')
+    list_display = ('descripcion', 'departamento', 'monto', 'fecha')
+    list_filter = ('departamento',)
 
 # --- Registro de Modelos Simples ---
 # Estos modelos no necesitan tanta personalización en el admin
 
 admin.site.register(Permisos)
-admin.site.register(CategoriaActivo)
 admin.site.register(Estado)
 admin.site.register(Ubicacion)
 # ... y así registrarías el resto de tus modelos si los tuvieras

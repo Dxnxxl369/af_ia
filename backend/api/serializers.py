@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 from .permissions import check_permission, HasPermission
 from .models import *
 from django.db import transaction
-from datetime import timedelta # <-- NUEVA IMPORTACIÓN
+from datetime import timedelta
 
 class CurrentUserEmpresaDefault:
     requires_context = True
@@ -98,7 +98,7 @@ class RolesSerializer(serializers.ModelSerializer):
         model = Roles
         fields = '__all__'
         
-class EmpleadoSerializer(serializers.ModelSerializer): # <-- [EDITADO]
+class EmpleadoSerializer(serializers.ModelSerializer):
     usuario = UsuarioSerializer(read_only=True)
     username = serializers.CharField(write_only=True)
     password = serializers.CharField(write_only=True, style={'input_type': 'password'}, required=False) # No requerido al editar
@@ -186,7 +186,7 @@ class EmpleadoSerializer(serializers.ModelSerializer): # <-- [EDITADO]
         # Actualizar el resto de campos del empleado
         return super().update(instance, validated_data)
 
-class ActivoFijoSerializer(serializers.ModelSerializer): # <-- [EDITADO]
+class ActivoFijoSerializer(serializers.ModelSerializer):
     empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())
     # --- [NUEVO] Campo de foto ---
     foto_activo = serializers.ImageField(required=False, allow_null=True)
@@ -208,14 +208,6 @@ class PresupuestoSerializer(serializers.ModelSerializer):
         model = Presupuesto
         fields = ['id', 'descripcion', 'monto', 'fecha', 'departamento', 'departamento_id', 'empresa']
         
-
-
-class CategoriaActivoSerializer(serializers.ModelSerializer):
-    empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())
-    class Meta:
-        model = CategoriaActivo
-        fields = '__all__'
-
 class EstadoSerializer(serializers.ModelSerializer):
     empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())
     class Meta:
@@ -356,7 +348,6 @@ class EmpleadoSimpleSerializer(serializers.ModelSerializer):
         model = Empleado
         fields = ['id', 'usuario', 'apellido_p', 'apellido_m'] # Campos necesarios para mostrar nombre
         
-# --- [NUEVO] Serializers para los nuevos modelos ---
 class MantenimientoSerializer(serializers.ModelSerializer):
     empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())    # Al LEER, anidamos info del activo y del empleado (read_only=True)
     activo = ActivoFijoSerializer(read_only=True)
@@ -385,6 +376,74 @@ class MantenimientoSerializer(serializers.ModelSerializer):
         ]
         # La empresa se asigna automáticamente
         read_only_fields = () # <-- ELIMINADO read_only_fields
+
+class OrdenesCompraSerializer(serializers.ModelSerializer):
+    empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())
+    proveedor = ProveedorSerializer(read_only=True)
+    solicitante = EmpleadoSimpleSerializer(read_only=True)
+
+    proveedor_id = serializers.PrimaryKeyRelatedField(
+        queryset=Proveedor.objects.all(), source='proveedor', write_only=True
+    )
+    solicitante_id = serializers.PrimaryKeyRelatedField(
+        queryset=Empleado.objects.all(), source='solicitante', write_only=True, required=False, allow_null=True
+    )
+
+    class Meta:
+        model = OrdenesCompra
+        fields = [
+            'id', 'estado', 'fecha_inicio', 'fecha_fin', 'condiciones', 'monto_total',
+            'proveedor', 'solicitante', # Campos de lectura
+            'proveedor_id', 'solicitante_id', 'empresa' # Campos de escritura
+        ]
+
+class ItemCatalogoSerializer(serializers.ModelSerializer):
+    empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())
+    class Meta:
+        model = ItemCatalogo
+        fields = '__all__'
+
+class InventarioSerializer(serializers.ModelSerializer):
+    empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())
+    # Campos de Lectura (anidados)
+    ubicacion = UbicacionSerializer(read_only=True)
+    item_catalogo = ItemCatalogoSerializer(read_only=True)
+    responsable = EmpleadoSimpleSerializer(read_only=True)
+
+    # Campos de Escritura (IDs)
+    ubicacion_id = serializers.PrimaryKeyRelatedField(
+        queryset=Ubicacion.objects.all(), source='ubicacion', write_only=True
+    )
+    item_catalogo_id = serializers.PrimaryKeyRelatedField(
+        queryset=ItemCatalogo.objects.all(), source='item_catalogo', write_only=True
+    )
+    responsable_id = serializers.PrimaryKeyRelatedField(
+        queryset=Empleado.objects.all(), source='responsable', write_only=True, required=False, allow_null=True
+    )
+    detalle_compra_id = serializers.PrimaryKeyRelatedField(
+        queryset=DetalleCompra.objects.all(), source='detalle_compra', write_only=True, required=False, allow_null=True
+    )
+
+    class Meta:
+        model = Inventario
+        fields = [
+            'id', 'cantidad',
+            'ubicacion', 'item_catalogo', 'responsable', # Lectura
+            'ubicacion_id', 'item_catalogo_id', 'responsable_id', 'detalle_compra_id', 'empresa' # Escritura
+        ]
+
+class MovimientoInventarioSerializer(serializers.ModelSerializer):
+    # No necesitamos anidar el inventario completo, con el ID es suficiente
+    class Meta:
+        model = MovimientoInventario
+        fields = '__all__'
+
+class ItemCatalogoSerializer(serializers.ModelSerializer):
+    empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())
+
+    class Meta:
+        model = ItemCatalogo
+        fields = '__all__'
 
 class RevalorizacionActivoSerializer(serializers.ModelSerializer):
     activo = ActivoFijoSerializer(read_only=True)
@@ -417,7 +476,6 @@ class NotificacionSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ('empresa',)
 
-# --- Serializer de Log (Tu versión está bien) ---
 class LogSerializer(serializers.ModelSerializer):
     # Definimos el usuario anidado para que se muestre info útil al LEER logs (opcional)
     # Al escribir, el backend lo asignará automáticamente.

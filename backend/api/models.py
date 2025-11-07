@@ -4,8 +4,6 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 
-# --- [NUEVO] Funciones para rutas de subida de archivos (Aislamiento de Tenants) ---
-
 def upload_path_perfil(instance, filename):
     """
     Guarda la foto de perfil en una carpeta específica del tenant.
@@ -20,8 +18,6 @@ def upload_path_activo(instance, filename):
     """
     return f'tenant_{instance.empresa.id}/fotos_activos/{filename}'
 
-# --- Modelos de Negocio (Base de datos: 'af_saas') ---
-
 class Empresa(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     nombre = models.CharField(max_length=100, unique=True)
@@ -30,7 +26,18 @@ class Empresa(models.Model):
     telefono = models.CharField(max_length=20, blank=True)
     email = models.EmailField(max_length=100, blank=True)
     fecha_creacion = models.DateTimeField(auto_now_add=True)
+    divisa_base = models.ForeignKey('Divisa', on_delete=models.SET_NULL, null=True, blank=True, related_name='empresas_base')
     def __str__(self): return self.nombre
+
+class Divisa(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    nombre = models.CharField(max_length=50, unique=True)
+    codigo = models.CharField(max_length=3, unique=True)  # Ej: USD, EUR, BOB
+    simbolo = models.CharField(max_length=5)
+    tasa_cambio = models.DecimalField(max_digits=14, decimal_places=6) # Tasa respecto a una divisa de referencia global (ej. USD)
+
+    def __str__(self):
+        return f"{self.nombre} ({self.codigo})"
 
 class Departamento(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -62,7 +69,7 @@ class Cargo(models.Model):
     class Meta: unique_together = ('empresa', 'nombre')
     def __str__(self): return f"{self.nombre} ({self.empresa.nombre})"
 
-class Empleado(models.Model): # <-- [EDITADO]
+class Empleado(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     usuario = models.OneToOneField(User, on_delete=models.CASCADE)
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='empleados')
@@ -76,7 +83,6 @@ class Empleado(models.Model): # <-- [EDITADO]
     departamento = models.ForeignKey(Departamento, on_delete=models.SET_NULL, null=True, blank=True)
     roles = models.ManyToManyField(Roles, blank=True)
     
-    # --- [NUEVO] Campo de foto de perfil opcional ---
     foto_perfil = models.ImageField(upload_to=upload_path_perfil, null=True, blank=True)
 
     theme_preference = models.CharField(
@@ -99,14 +105,16 @@ class Empleado(models.Model): # <-- [EDITADO]
     def __str__(self):
         return f"{self.usuario.first_name} {self.apellido_p}"
 
-class ActivoFijo(models.Model): # <-- [EDITADO]
+class ActivoFijo(models.Model): 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='activos_fijos')
     nombre = models.CharField(max_length=100)
     codigo_interno = models.CharField(max_length=50)
+    serial = models.CharField(max_length=255, blank=True, null=True, unique=True)
     fecha_adquisicion = models.DateField()
     valor_actual = models.DecimalField(max_digits=12, decimal_places=2)
     vida_util = models.IntegerField() # En años
+    item_catalogo = models.ForeignKey('ItemCatalogo', on_delete=models.SET_NULL, null=True, blank=True, related_name='activos')
     departamento = models.ForeignKey(
         Departamento,
         on_delete=models.SET_NULL, # Si se borra el depto, el campo queda nulo
@@ -114,9 +122,7 @@ class ActivoFijo(models.Model): # <-- [EDITADO]
         blank=True,   # Permite que esté vacío en formularios
         related_name='activos' # Permite buscar activos desde un depto
     )
-    categoria = models.ForeignKey('CategoriaActivo', on_delete=models.PROTECT)
     estado = models.ForeignKey('Estado', on_delete=models.PROTECT) # Ej: "En Uso", "En Mantenimiento", "De Baja"
-    ubicacion = models.ForeignKey('Ubicacion', on_delete=models.PROTECT)
     proveedor = models.ForeignKey('Proveedor', on_delete=models.SET_NULL, null=True, blank=True)
     
     # --- [NUEVO] Campo de foto de activo opcional ---
@@ -125,12 +131,36 @@ class ActivoFijo(models.Model): # <-- [EDITADO]
     class Meta: unique_together = ('empresa', 'codigo_interno')
     def __str__(self): return self.nombre
 
-class CategoriaActivo(models.Model):
+class PartidasPresupuestarias(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='categorias_activos')
-    nombre = models.CharField(max_length=100)
-    descripcion = models.TextField(blank=True, null=True)
-    def __str__(self): return self.nombre
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='partidas_presupuestarias')
+    presupuesto = models.ForeignKey('Presupuesto', on_delete=models.CASCADE, related_name='partidas')
+    nombre = models.CharField(max_length=20)
+    fecha = models.DateField()
+
+    def __str__(self):
+        return self.nombre
+
+class DetalleCompra(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='detalles_compra')
+    orden_compra = models.ForeignKey('OrdenesCompra', on_delete=models.CASCADE, related_name='detalles')
+    partida = models.ForeignKey('PartidasPresupuestarias', on_delete=models.CASCADE, related_name='detalles_compra')
+    item = models.ForeignKey('ItemCatalogo', on_delete=models.PROTECT, related_name='en_compras')
+    cantidad = models.PositiveIntegerField()
+    precio_unitario = models.DecimalField(max_digits=12, decimal_places=2)
+
+    def __str__(self):
+        return f"Compra de {self.cantidad} a {self.precio_unitario}"
+
+class ItemCatalogo(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='items_catalogo')
+    nombre = models.CharField(max_length=200)
+    tipo_item = models.CharField(max_length=200)
+
+    def __str__(self):
+        return self.nombre
 
 class Estado(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -147,6 +177,32 @@ class Ubicacion(models.Model):
     detalle = models.TextField(blank=True, null=True)
     def __str__(self): return self.nombre
 
+class Inventario(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='inventarios')
+    ubicacion = models.ForeignKey(Ubicacion, on_delete=models.CASCADE, related_name='inventarios')
+    item_catalogo = models.ForeignKey('ItemCatalogo', on_delete=models.CASCADE, related_name='inventarios')
+    detalle_compra = models.ForeignKey('DetalleCompra', on_delete=models.CASCADE, related_name='inventarios')
+    responsable = models.ForeignKey('Empleado', on_delete=models.SET_NULL, null=True, blank=True, related_name='inventarios_asignados')
+    cantidad = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return f"Inventario en {self.ubicacion.nombre}: {self.cantidad}"
+
+class MovimientoInventario(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    inventario = models.ForeignKey(Inventario, on_delete=models.CASCADE, related_name='movimientos')
+    
+    TIPO_MOVIMIENTO_CHOICES = [('ENTRADA', 'Entrada'), ('SALIDA', 'Salida'), ('AJUSTE', 'Ajuste')]
+    
+    tipo_movimiento = models.CharField(max_length=20, choices=TIPO_MOVIMIENTO_CHOICES)
+    fecha = models.DateField(auto_now_add=True)
+    descripcion = models.CharField(max_length=50, blank=True)
+    cantidad = models.IntegerField()
+
+    def __str__(self):
+        return f"{self.get_tipo_movimiento_display()} de {self.cantidad} en {self.inventario.item_catalogo.nombre}"
+
 class Proveedor(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='proveedores')
@@ -159,16 +215,51 @@ class Proveedor(models.Model):
     estado = models.CharField(max_length=20, default='activo')
     def __str__(self): return self.nombre
 
+class OrdenesCompra(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='ordenes_compra')
+    proveedor = models.ForeignKey(Proveedor, on_delete=models.SET_NULL, null=True, blank=True, related_name='ordenes_compra')
+    solicitante = models.ForeignKey('Empleado', on_delete=models.SET_NULL, null=True, blank=True, related_name='ordenes_solicitadas')
+    
+    ESTADO_CHOICES = [('PENDIENTE', 'Pendiente'), ('APROBADA', 'Aprobada'), ('COMPLETADA', 'Completada'), ('CANCELADA', 'Cancelada')]
+    
+    estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='PENDIENTE')
+    fecha_inicio = models.DateField()
+    fecha_fin = models.DateField(null=True, blank=True)
+    condiciones = models.TextField(blank=True)
+    monto_total = models.DecimalField(max_digits=15, decimal_places=2, default=0)
+
+    def __str__(self):
+        return f"Orden de Compra {self.id} para {self.empresa.nombre}"
+
+class Impuestos(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    nombre = models.CharField(max_length=30, unique=True)
+    cantidad = models.DecimalField(max_digits=5, decimal_places=2) # Ej. 13.00 para 13%
+
+    def __str__(self):
+        return f"{self.nombre} ({self.cantidad}%)"
+
+class DisposicionActivos(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    activo = models.ForeignKey(ActivoFijo, on_delete=models.CASCADE, related_name='disposiciones')
+    impuesto = models.ForeignKey(Impuestos, on_delete=models.SET_NULL, null=True, blank=True, related_name='disposiciones')
+    motivo = models.CharField(max_length=50)
+    fecha = models.DateField()
+    valor_disposicion = models.DecimalField(max_digits=12, decimal_places=2)
+    detalle = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"Disposición de {self.activo.nombre} por {self.motivo}"
+
 class Presupuesto(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='presupuestos')
-    departamento = models.ForeignKey(Departamento, on_delete=models.CASCADE)
+    departamento = models.ForeignKey(Departamento, on_delete=models.CASCADE, related_name='presupuestos')
     monto = models.DecimalField(max_digits=15, decimal_places=2)
     fecha = models.DateField()
     descripcion = models.TextField(blank=True, null=True)
     def __str__(self): return f"Presupuesto {self.departamento.nombre} - {self.fecha}"
 
-# --- [NUEVO] Modelo de Mantenimiento (Base de datos: 'af_saas') ---
 class Mantenimiento(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='mantenimientos')
@@ -190,7 +281,6 @@ class Mantenimiento(models.Model):
     def __str__(self):
         return f"{self.get_tipo_display()} - {self.activo.nombre} ({self.get_estado_display()})"
 
-# --- [NUEVO] Modelo de Suscripción (Base de datos: 'af_saas') ---
 class Suscripcion(models.Model):
     PLAN_CHOICES = [
         ('basico', 'Básico'),
@@ -219,7 +309,6 @@ class Suscripcion(models.Model):
     def __str__(self):
         return f"Suscripción {self.get_plan_display()} de {self.empresa.nombre} ({self.get_estado_display()})"
 
-# --- [NUEVO] Modelo de Revalorización (Base de datos: 'af_saas') ---
 class RevalorizacionActivo(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='revalorizaciones')
@@ -239,8 +328,25 @@ class RevalorizacionActivo(models.Model):
     def __str__(self):
         return f"Revalorización de {self.activo.nombre} en {self.fecha.strftime('%Y-%m-%d')}"
 
+class TipoDepreciacion(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    empresa = models.ForeignKey(Empresa, on_delete=models.CASCADE, related_name='tipos_depreciacion')
+    nombre = models.CharField(max_length=20, unique=True)
+    detalle = models.CharField(max_length=50, blank=True)
 
-# --- [NUEVO] Modelo de Notificación (Base de datos: 'af_saas') ---
+    def __str__(self):
+        return self.nombre
+
+class DepreciacionActivos(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    activo = models.ForeignKey(ActivoFijo, on_delete=models.CASCADE, related_name='depreciaciones')
+    tipo_depreciacion = models.ForeignKey(TipoDepreciacion, on_delete=models.PROTECT, related_name='depreciaciones')
+    fecha = models.DateField()
+    monto = models.DecimalField(max_digits=12, decimal_places=2)
+
+    def __str__(self):
+        return f"Depreciación de {self.activo.nombre} - {self.monto}"
+
 class Notificacion(models.Model):
     TIPO_CHOICES = [
         ('ADVERTENCIA', 'Advertencia'),
@@ -268,27 +374,48 @@ class Notificacion(models.Model):
     def __str__(self):
         return f"[{self.get_tipo_display()}] para {self.destinatario.username} (Leído: {self.leido})"
 
-# --- Modelo de Log/Bitácora (Base de datos: 'log_saas') ---
 class Log(models.Model):
+    """
+    Representa una entrada en la bitácora del sistema. Cada instancia es un registro
+    de una acción importante realizada por un usuario.
+    """
+    # Clave primaria única para cada registro de log.
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Registra automáticamente la fecha y hora exactas en que se creó el log.
     timestamp = models.DateTimeField(auto_now_add=True)
+
+    # Guarda qué usuario realizó la acción.
+    # Si se borra el usuario, el log no se borra, solo se quita la asociación (SET_NULL).
+    # db_constraint=False es importante porque este modelo está pensado para vivir
+    # en una base de datos separada ('log_saas') y no se puede crear una restricción
+    # de clave foránea a nivel de base de datos entre distintas bases de datos.
     usuario = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        db_constraint=False # No crea llave foránea entre bases de datos
+        db_constraint=False
     )
+
+    # Guarda la dirección IP desde donde el usuario realizó la acción (útil para auditoría).
     ip_address = models.GenericIPAddressField()
-    accion = models.CharField(max_length=255) # ej: "CREATE: ActivoFijo, ID: xxx"
-    tenant_id = models.UUIDField(null=True, blank=True, db_index=True) # Guarda el ID de la empresa
-    payload = models.JSONField(null=True, blank=True) # Guarda los datos de la petición
+
+    # Un texto que describe la acción, por ejemplo: "CREAR: ActivoFijo, ID: xxx"
+    accion = models.CharField(max_length=255)
+
+    # En un sistema multi-empresa (SaaS), esto guarda el ID de la empresa (tenant)
+    # a la que pertenecen los datos que se modificaron.
+    tenant_id = models.UUIDField(null=True, blank=True, db_index=True)
+
+    # Un campo JSON muy potente para guardar datos adicionales. Por ejemplo,
+    # al crear un activo, aquí se podría guardar una copia de los datos creados.
+    payload = models.JSONField(null=True, blank=True)
     
     class Meta:
-        # Nombre explícito de la tabla en la base de datos 'log_saas'
+        # Le da un nombre explícito a la tabla en la base de datos 'log_saas'.
         db_table = 'log_bitacora'
 
-# --- [NUEVO] Modelo de Predicción de Mantenimiento (Base de datos: 'analytics_saas') ---
 class PrediccionMantenimiento(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     timestamp = models.DateTimeField(auto_now_add=True)
@@ -303,7 +430,6 @@ class PrediccionMantenimiento(models.Model):
         ordering = ['-timestamp']
         db_table = 'prediccion_mantenimiento' # Nombre para la BD 'analytics_saas'
 
-# --- [NUEVO] Modelo de Predicción de Presupuesto (Base de datos: 'analytics_saas') ---
 class PrediccionPresupuesto(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     timestamp = models.DateTimeField(auto_now_add=True)

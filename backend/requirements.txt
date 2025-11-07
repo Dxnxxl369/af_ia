@@ -25,3 +25,6 @@ reportlab
 python-dotenv
 # Servidor WSGI (necesario para desplegar en producción, bueno para estandarizar)
 gunicorn
+
+# --- Filtrado de API ---
+django-filter
