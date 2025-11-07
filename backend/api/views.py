@@ -331,6 +331,33 @@ class PresupuestoViewSet(BaseTenantViewSet):
     filter_backends = (DjangoFilterBackend, SearchFilter)
     search_fields = ['descripcion', 'departamento__nombre']
 
+    def get_queryset(self):
+        """
+        Sobrescribe el método base para filtrar a través del departamento.
+        """
+        if self.request.user.is_staff:
+            return self.queryset.all()
+        
+        try:
+            empleado = self.request.user.empleado
+            return self.queryset.filter(departamento__empresa=empleado.empresa)
+        except Empleado.DoesNotExist:
+            return self.queryset.none()
+
+    def perform_create(self, serializer):
+        """
+        Sobrescribe el método base para guardar sin inyectar la empresa,
+        ya que el modelo Presupuesto no tiene el campo 'empresa'.
+        La validación del departamento asegura que pertenece a la empresa correcta.
+        """
+        # Validar que el departamento pertenezca a la empresa del usuario
+        departamento = serializer.validated_data.get('departamento')
+        if departamento.empresa != self.request.user.empleado.empresa:
+            raise serializers.ValidationError({
+                "departamento_id": "Este departamento no pertenece a tu empresa."
+            })
+        serializer.save()
+
 class RolesViewSet(BaseTenantViewSet):
     queryset = Roles.objects.all()
     serializer_class = RolesSerializer
@@ -468,7 +495,7 @@ class ReporteActivosPreview(APIView):
     def get_queryset(self, request):
         empleado = request.user.empleado
         queryset = ActivoFijo.objects.filter(empresa=empleado.empresa).select_related(
-            'categoria', 'estado', 'ubicacion', 'departamento' # Asegurar todos los relateds
+            'item_catalogo', 'estado', 'ubicacion', 'departamento' # Asegurar todos los relateds
         )
         ubicacion_id = request.query_params.get('ubicacion_id') 
         fecha_min = request.query_params.get('fecha_min')
@@ -490,7 +517,7 @@ class ReporteActivosPreview(APIView):
             # Devolver los campos que el frontend necesita para la tabla
             data = queryset.values(
                 'id', 'nombre', 'codigo_interno', 'fecha_adquisicion', 'valor_actual',
-                'ubicacion__nombre', 'categoria__nombre', 'departamento__nombre'
+                'ubicacion__nombre', 'item_catalogo__nombre', 'departamento__nombre'
             )
             return Response(list(data))
         except Empleado.DoesNotExist:
@@ -511,7 +538,7 @@ class ReporteActivosExport(APIView):
             # Reutiliza la lógica de get_queryset de la vista previa
             # y asegura que todos los campos relacionados necesarios estén
             qs = ReporteActivosPreview().get_queryset(request).select_related(
-               'ubicacion', 'estado', 'categoria', 'departamento'
+               'ubicacion', 'estado', 'item_catalogo', 'departamento'
             )
             logger.info(f"Report Export: Queryset count = {qs.count()}")
             return qs
@@ -559,7 +586,141 @@ class ReporteActivosExport(APIView):
         # Mapeo de claves a campos base del modelo ActivoFijo
         field_mapping = {
             'depto': 'departamento__nombre',
-            'categoria': 'categoria__nombre',
+            'categoria': 'item_catalogo__nombre',
+            'ubicacion': 'ubicacion__nombre',
+            'estado': 'estado__nombre',
+            'proveedor': 'proveedor__nombre',
+            'nombre': 'nombre',
+            'codigo': 'codigo_interno',
+            'valor': 'valor_actual',
+            'fecha_adq': 'fecha_adquisicion',
+        }
+
+        # Mapeo de operadores de texto/numéricos a suffixes de Django ORM
+        operator_mapping = {
+            ':': '__icontains', # Búsqueda de texto flexible (contiene, sin mayúsculas)
+            '>': '__gt',        # Mayor que
+            '<': '__lt',        # Menor que
+            '=': '__exact',     # Coincidencia exacta
+        }
+
+        q_objects = Q() # Inicializa un objeto Q vacío (para combinar filtros con AND)
+
+        for f in filters_list:
+            try:
+                f = f.strip()
+                if not f: continue # Ignorar filtros vacíos
+
+                # --- NUEVA LÓGICA DE PARSEO ---
+                # Intenta encontrar un patrón como "clave:valor", "clave>valor", "clave < valor"
+                # Regex: (clave) (espacios) (operador) (espacios) (valor)
+                match = re.match(r'([\w_]+)\s*([:<>])\s*(.+)', f)
+                
+                if match:
+                    # --- Filtro Estructurado (ej: "depto: TI", "valor > 1000") ---
+                    key, operator, value = match.groups()
+                    key = key.lower().strip()
+                    operator = operator.strip()
+                    value = value.strip()
+                    
+                    # Verificar si la clave y el operador son válidos
+                    if key in field_mapping and operator in operator_mapping:
+                        # Construir el nombre completo del campo ORM (ej: 'valor_actual__gt')
+                        orm_field = field_mapping[key] + operator_mapping[operator]
+                        
+                        # Convertir valor si es numérico o fecha
+                        if operator in ['>', '<', '='] and key in ['valor', 'fecha_adq']:
+                            try:
+                                if key == 'valor':
+                                    value = float(value) # Convertir a número
+                                elif key == 'fecha_adq':
+                                    # Asumir formato YYYY-MM-DD
+                                    value = datetime.strptime(value, '%Y-%m-%d').date()
+                            except ValueError:
+                                logger.warn(f"Filtro ignorado: Valor para '{key}{operator}' no es válido: '{value}'")
+                                continue # Saltar este filtro
+                        
+                        # Añadir al query (ej: Q(valor_actual__gt=1000))
+                        q_objects &= Q(**{orm_field: value})
+                    else:
+                        logger.warn(f"Filtro ignorado: Clave '{key}' u operador '{operator}' no reconocidos.")
+
+                # --- Filtro de Texto Simple (ej: "laptop", "finanzas") ---
+                else:
+                    # Si no es un filtro estructurado, buscar el texto en MÚLTIPLES campos
+                    q_objects &= (
+                        Q(nombre__icontains=f) | 
+                        Q(codigo_interno__icontains=f) |
+                        Q(departamento__nombre__icontains=f) |
+                        Q(item_catalogo__nombre__icontains=f) |
+                        Q(ubicacion__nombre__icontains=f) |
+                        Q(estado__nombre__icontains=f) |
+                        Q(proveedor__nombre__icontains=f)
+                    )
+            except Exception as e:
+                # Ignorar filtros malformados (ej: "valor>abc")
+                logger.warn(f"Report Query: Ignorando filtro malformado: '{f}'. Error: {e}")
+                pass
+                
+        # Aplicar todos los filtros combinados (Q objects) al queryset
+        return query.filter(q_objects).distinct()
+
+class ReporteQueryView(APIView):
+    """
+    Recibe filtros dinámicos (POST) y devuelve una vista previa JSON.
+    Endpoint: /api/reportes/query/
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get_base_queryset(self, request):
+        # Filtrar por tenant (empresa)
+        try:
+            empleado = request.user.empleado
+            # Precargar todos los campos relacionados que podamos necesitar
+            return ActivoFijo.objects.filter(empresa=empleado.empresa).select_related(
+                'departamento', 'ubicacion', 'item_catalogo', 'estado', 'proveedor'
+            )
+        except Empleado.DoesNotExist:
+            if request.user.is_staff:
+                 return ActivoFijo.objects.all().select_related(
+                    'departamento', 'ubicacion', 'item_catalogo', 'estado', 'proveedor'
+                 )
+            return ActivoFijo.objects.none()
+
+    def post(self, request, *args, **kwargs):
+        filters = request.data.get('filters', [])
+        if not isinstance(filters, list):
+             return Response({"detail": "El campo 'filters' debe ser una lista."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        logger.info(f"Report Query Preview POST. Filters = {filters}")
+        try:
+            base_qs = self.get_base_queryset(request)
+            queryset = ReporteQueryView.parse_and_build_query(filters, base_qs)
+            
+            # Devolver los datos que el frontend espera en la tabla
+            data = queryset.values(
+                'id', 'nombre', 'codigo_interno', 'fecha_adquisicion', 'valor_actual',
+                'departamento__nombre',
+                'ubicacion__nombre'
+            )
+            return Response(list(data), status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            logger.error(f"Report Query Error: {e}", exc_info=True)
+            return Response({"detail": f"Error al procesar la consulta: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @staticmethod
+    def parse_and_build_query(filters_list, base_queryset):
+        """
+        Toma una lista de strings de filtro (ej: ["depto:TI", "laptop", "valor>500"])
+        y la convierte en un queryset de Django filtrado.
+        """
+        query = base_queryset
+        
+        # Mapeo de claves a campos base del modelo ActivoFijo
+        field_mapping = {
+            'depto': 'departamento__nombre',
+            'categoria': 'item_catalogo__nombre',
             'ubicacion': 'ubicacion__nombre',
             'estado': 'estado__nombre',
             'proveedor': 'proveedor__nombre',
@@ -638,50 +799,6 @@ class ReporteActivosExport(APIView):
         # Aplicar todos los filtros combinados (Q objects) al queryset
         return query.filter(q_objects).distinct()
 
-class ReporteQueryView(APIView):
-    """
-    Recibe filtros dinámicos (POST) y devuelve una vista previa JSON.
-    Endpoint: /api/reportes/query/
-    """
-    permission_classes = [IsAuthenticated]
-
-    def get_base_queryset(self, request):
-        # Filtrar por tenant (empresa)
-        try:
-            empleado = request.user.empleado
-            # Precargar todos los campos relacionados que podamos necesitar
-            return ActivoFijo.objects.filter(empresa=empleado.empresa).select_related(
-                'departamento', 'ubicacion', 'categoria', 'estado', 'proveedor'
-            )
-        except Empleado.DoesNotExist:
-            if request.user.is_staff:
-                 return ActivoFijo.objects.all().select_related(
-                    'departamento', 'ubicacion', 'categoria', 'estado', 'proveedor'
-                 )
-            return ActivoFijo.objects.none()
-
-    def post(self, request, *args, **kwargs):
-        filters = request.data.get('filters', [])
-        if not isinstance(filters, list):
-             return Response({"detail": "El campo 'filters' debe ser una lista."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        logger.info(f"Report Query Preview POST. Filters = {filters}")
-        try:
-            base_qs = self.get_base_queryset(request)
-            queryset = parse_and_build_query(filters, base_qs)
-            
-            # Devolver los datos que el frontend espera en la tabla
-            data = queryset.values(
-                'id', 'nombre', 'codigo_interno', 'fecha_adquisicion', 'valor_actual',
-                'departamento__nombre',
-                'ubicacion__nombre'
-            )
-            return Response(list(data), status=status.HTTP_200_OK)
-        
-        except Exception as e:
-            logger.error(f"Report Query Error: {e}", exc_info=True)
-            return Response({"detail": f"Error al procesar la consulta: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 class ReporteQueryExportView(ReporteQueryView):
     """
     Recibe filtros dinámicos y formato (POST) y devuelve un archivo PDF/Excel
@@ -700,7 +817,7 @@ class ReporteQueryExportView(ReporteQueryView):
             # Obtener queryset base (ya tiene select_related)
             base_qs = self.get_base_queryset(request)
             # Aplicar filtros
-            queryset = parse_and_build_query(filters, base_qs)
+            queryset = ReporteQueryView.parse_and_build_query(filters, base_qs)
 
             if not queryset.exists():
                 logger.warning("Report Query Export: Queryset is empty.")

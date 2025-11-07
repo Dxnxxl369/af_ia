@@ -348,284 +348,231 @@ export const getSuscripcion = () => apiClient.get('/suscripcion/');*/
 import apiClient from './axiosConfig';
 import { logAction } from './logService';
 
-// --- Funciones para Departamentos ---
-export const getDepartamentos = async () => {
-    const response = await apiClient.get('/departamentos/');
-    return response.data; // Devuelve { count, next, previous, results } o [...]
+/**
+ * Función genérica para obtener una lista de items de un endpoint.
+ * Acepta parámetros para filtrado, búsqueda y paginación.
+ * @param {string} endpoint - El endpoint de la API (ej: '/activos-fijos/').
+ * @param {object} params - Objeto con los parámetros de la query (ej: { search: 'laptop', page: 2 }).
+ * @returns {Promise<object>} La respuesta de la API (normalmente { count, next, previous, results }).
+ */
+const getItems = async (endpoint, params) => {
+    const response = await apiClient.get(endpoint, { params });
+    return response.data;
 };
+
+// --- Funciones para Departamentos ---
+export const getDepartamentos = (params) => getItems('/departamentos/', params);
 
 export const createDepartamento = async (data) => {
     const response = await apiClient.post('/departamentos/', data);
-    // Log DESPUÉS de éxito
     await logAction('CREATE: Departamento', { id_creado: response.data.id, nombre: data.nombre });
-    return response.data; // Devuelve el objeto creado
+    return response.data;
 };
 
 export const updateDepartamento = async (id, data) => {
-    const response = await apiClient.patch(`/departamentos/${id}/`, data); // Usando PATCH
-    // Log DESPUÉS de éxito
+    const response = await apiClient.patch(`/departamentos/${id}/`, data);
     await logAction('UPDATE: Departamento', { id: id, ...data });
-    return response.data; // Devuelve el objeto actualizado
+    return response.data;
 };
 
 export const deleteDepartamento = async (id) => {
     await apiClient.delete(`/departamentos/${id}/`);
-    // Log DESPUÉS de éxito
     await logAction('DELETE: Departamento', { id: id });
-    // No hay return
 };
 
 // --- Funciones para Activos Fijos ---
-export const getActivosFijos = async () => {
-    const response = await apiClient.get('/activos-fijos/');
-    return response.data;
-};
+export const getActivosFijos = (params) => getItems('/activos-fijos/', params);
 
-// Acepta FormData para fotos
 export const createActivoFijo = async (formData) => {
     const response = await apiClient.post('/activos-fijos/', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
     });
-    // Log DESPUÉS de éxito
     await logAction('CREATE: ActivoFijo', {
         id_creado: response.data.id,
-        nombre: formData.get('nombre'), // Leer de FormData
+        nombre: formData.get('nombre'),
         codigo: formData.get('codigo_interno')
     });
     return response.data;
 };
 
-// Acepta FormData para fotos
 export const updateActivoFijo = async (id, formData) => {
-    const response = await apiClient.patch(`/activos-fijos/${id}/`, formData, { // Usando PATCH
+    const response = await apiClient.patch(`/activos-fijos/${id}/`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
     });
-    // Log DESPUÉS de éxito
-    await logAction('UPDATE: ActivoFijo', { id: id }); // Logueamos solo ID con FormData
+    await logAction('UPDATE: ActivoFijo', { id: id });
     return response.data;
 };
 
 export const deleteActivoFijo = async (id) => {
     await apiClient.delete(`/activos-fijos/${id}/`);
-    // Log DESPUÉS de éxito
     await logAction('DELETE: ActivoFijo', { id: id });
 };
 
 // --- Funciones para Cargos ---
-export const getCargos = async () => {
-    const response = await apiClient.get('/cargos/');
-    return response.data;
-};
+export const getCargos = (params) => getItems('/cargos/', params);
 
 export const createCargo = async (data) => {
     const response = await apiClient.post('/cargos/', data);
-    // Log DESPUÉS de éxito
     await logAction('CREATE: Cargo', { id_creado: response.data.id, nombre: data.nombre });
     return response.data;
 };
 
 export const updateCargo = async (id, data) => {
-    const response = await apiClient.patch(`/cargos/${id}/`, data); // Usando PATCH
-    // Log DESPUÉS de éxito
+    const response = await apiClient.patch(`/cargos/${id}/`, data);
     await logAction('UPDATE: Cargo', { id: id, ...data });
     return response.data;
 };
 
 export const deleteCargo = async (id) => {
     await apiClient.delete(`/cargos/${id}/`);
-    // Log DESPUÉS de éxito
     await logAction('DELETE: Cargo', { id: id });
 };
 
 // --- Funciones para Empleados ---
-export const getEmpleados = async () => {
-    const response = await apiClient.get('/empleados/');
-    return response.data;
-};
+export const getEmpleados = (params) => getItems('/empleados/', params);
 
-// Acepta FormData para fotos
 export const createEmpleado = async (formData) => {
     const response = await apiClient.post('/empleados/', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
     });
-    // Log DESPUÉS de éxito
     await logAction('CREATE: Empleado', {
         id_creado: response.data.id,
-        username: formData.get('username'), // Leer de FormData
+        username: formData.get('username'),
         email: formData.get('email')
     });
     return response.data;
 };
 
-// Acepta FormData para fotos
 export const updateEmpleado = async (id, formData) => {
-    const response = await apiClient.patch(`/empleados/${id}/`, formData, { // Usando PATCH
+    const response = await apiClient.patch(`/empleados/${id}/`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
     });
-    // Log DESPUÉS de éxito
-    await logAction('UPDATE: Empleado', { id: id }); // Logueamos solo ID con FormData
+    await logAction('UPDATE: Empleado', { id: id });
     return response.data;
 };
 
 export const deleteEmpleado = async (id) => {
     await apiClient.delete(`/empleados/${id}/`);
-    // Log DESPUÉS de éxito
     await logAction('DELETE: Empleado', { id: id });
 };
 
 // --- Funciones para Roles ---
-export const getRoles = async () => {
-    const response = await apiClient.get('/roles/');
-    return response.data;
-};
+export const getRoles = (params) => getItems('/roles/', params);
 
 export const createRol = async (data) => {
     const response = await apiClient.post('/roles/', data);
-    // Log DESPUÉS de éxito
     await logAction('CREATE: Rol', { id_creado: response.data.id, nombre: data.nombre, permisos: data.permisos });
     return response.data;
 };
 
 export const updateRol = async (id, data) => {
-    const response = await apiClient.patch(`/roles/${id}/`, data); // Usando PATCH
-    // Log DESPUÉS de éxito
+    const response = await apiClient.patch(`/roles/${id}/`, data);
     await logAction('UPDATE: Rol', { id: id, ...data });
     return response.data;
 };
 
 export const deleteRol = async (id) => {
     await apiClient.delete(`/roles/${id}/`);
-    // Log DESPUÉS de éxito
     await logAction('DELETE: Rol', { id: id });
 };
 
 // --- Funciones para Presupuestos ---
-export const getPresupuestos = async () => {
-    const response = await apiClient.get('/presupuestos/');
-    return response.data;
-};
+export const getPresupuestos = (params) => getItems('/presupuestos/', params);
 
 export const createPresupuesto = async (data) => {
     const response = await apiClient.post('/presupuestos/', data);
-    // Log DESPUÉS de éxito
     await logAction('CREATE: Presupuesto', { id_creado: response.data.id, monto: data.monto, departamento_id: data.departamento_id });
     return response.data;
 };
 
 export const updatePresupuesto = async (id, data) => {
-    const response = await apiClient.patch(`/presupuestos/${id}/`, data); // Usando PATCH
-    // Log DESPUÉS de éxito
+    const response = await apiClient.patch(`/presupuestos/${id}/`, data);
     await logAction('UPDATE: Presupuesto', { id: id, ...data });
     return response.data;
 };
 
 export const deletePresupuesto = async (id) => {
     await apiClient.delete(`/presupuestos/${id}/`);
-    // Log DESPUÉS de éxito
     await logAction('DELETE: Presupuesto', { id: id });
 };
 
 // --- Funciones para Ubicaciones ---
-export const getUbicaciones = async () => {
-    const response = await apiClient.get('/ubicaciones/');
-    return response.data;
-};
+export const getUbicaciones = (params) => getItems('/ubicaciones/', params);
 
 export const createUbicacion = async (data) => {
     const response = await apiClient.post('/ubicaciones/', data);
-    // Log DESPUÉS de éxito
     await logAction('CREATE: Ubicacion', { id_creado: response.data.id, nombre: data.nombre });
     return response.data;
 };
 
 export const updateUbicacion = async (id, data) => {
-    const response = await apiClient.patch(`/ubicaciones/${id}/`, data); // Usando PATCH
-    // Log DESPUÉS de éxito
+    const response = await apiClient.patch(`/ubicaciones/${id}/`, data);
     await logAction('UPDATE: Ubicacion', { id: id, ...data });
     return response.data;
 };
 
 export const deleteUbicacion = async (id) => {
     await apiClient.delete(`/ubicaciones/${id}/`);
-    // Log DESPUÉS de éxito
     await logAction('DELETE: Ubicacion', { id: id });
 };
 
 // --- Funciones para Proveedores ---
-export const getProveedores = async () => {
-    const response = await apiClient.get('/proveedores/');
-    return response.data;
-};
+export const getProveedores = (params) => getItems('/proveedores/', params);
 
 export const createProveedor = async (data) => {
     const response = await apiClient.post('/proveedores/', data);
-    // Log DESPUÉS de éxito
     await logAction('CREATE: Proveedor', { id_creado: response.data.id, nombre: data.nombre, nit: data.nit });
     return response.data;
 };
 
 export const updateProveedor = async (id, data) => {
-    const response = await apiClient.patch(`/proveedores/${id}/`, data); // Usando PATCH
-    // Log DESPUÉS de éxito
+    const response = await apiClient.patch(`/proveedores/${id}/`, data);
     await logAction('UPDATE: Proveedor', { id: id, ...data });
     return response.data;
 };
 
 export const deleteProveedor = async (id) => {
     await apiClient.delete(`/proveedores/${id}/`);
-    // Log DESPUÉS de éxito
     await logAction('DELETE: Proveedor', { id: id });
 };
 
-// --- Funciones para Categorías de Activos ---
-export const getCategoriasActivos = async () => {
-    const response = await apiClient.get('/categorias-activos/');
+// --- Funciones para Items de Catálogo (antes Categorías) ---
+export const getItemsCatalogo = (params) => getItems('/items-catalogo/', params);
+
+export const createItemCatalogo = async (data) => {
+    const response = await apiClient.post('/items-catalogo/', data);
+    await logAction('CREATE: ItemCatalogo', { id_creado: response.data.id, nombre: data.nombre });
     return response.data;
 };
 
-export const createCategoriaActivo = async (data) => {
-    const response = await apiClient.post('/categorias-activos/', data);
-    // Log DESPUÉS de éxito
-    await logAction('CREATE: CategoriaActivo', { id_creado: response.data.id, nombre: data.nombre });
+export const updateItemCatalogo = async (id, data) => {
+    const response = await apiClient.patch(`/items-catalogo/${id}/`, data);
+    await logAction('UPDATE: ItemCatalogo', { id: id, ...data });
     return response.data;
 };
 
-export const updateCategoriaActivo = async (id, data) => {
-    const response = await apiClient.patch(`/categorias-activos/${id}/`, data); // Usando PATCH
-    // Log DESPUÉS de éxito
-    await logAction('UPDATE: CategoriaActivo', { id: id, ...data });
-    return response.data;
-};
-
-export const deleteCategoriaActivo = async (id) => {
-    await apiClient.delete(`/categorias-activos/${id}/`);
-    // Log DESPUÉS de éxito
-    await logAction('DELETE: CategoriaActivo', { id: id });
+export const deleteItemCatalogo = async (id) => {
+    await apiClient.delete(`/items-catalogo/${id}/`);
+    await logAction('DELETE: ItemCatalogo', { id: id });
 };
 
 // --- Funciones para Estados de Activos ---
-export const getEstados = async () => {
-    const response = await apiClient.get('/estados/');
-    return response.data;
-};
+export const getEstados = (params) => getItems('/estados/', params);
 
 export const createEstado = async (data) => {
     const response = await apiClient.post('/estados/', data);
-    // Log DESPUÉS de éxito
     await logAction('CREATE: Estado', { id_creado: response.data.id, nombre: data.nombre });
     return response.data;
 };
 
 export const updateEstado = async (id, data) => {
-    const response = await apiClient.patch(`/estados/${id}/`, data); // Usando PATCH
-    // Log DESPUÉS de éxito
+    const response = await apiClient.patch(`/estados/${id}/`, data);
     await logAction('UPDATE: Estado', { id: id, ...data });
     return response.data;
 };
 
 export const deleteEstado = async (id) => {
     await apiClient.delete(`/estados/${id}/`);
-    // Log DESPUÉS de éxito
     await logAction('DELETE: Estado', { id: id });
 };
 
@@ -645,7 +592,6 @@ export const downloadReporteActivos = async (params) => {
     const urlPath = 'reportes/activos-export/';
     try {
         const response = await apiClient.get(urlPath, { params, responseType: 'blob' });
-        // Lógica de descarga...
         const contentType = response.headers['content-type'];
         let filename = params.format === 'excel' ? "reporte_activos.xlsx" : "reporte_activos.pdf";
         const url = window.URL.createObjectURL(new Blob([response.data], { type: contentType }));
@@ -655,82 +601,62 @@ export const downloadReporteActivos = async (params) => {
         document.body.appendChild(link);
         link.click();
         link.remove();
-        // Log DESPUÉS de éxito
         await logAction('EXPORT: Reporte Activos', { format: params.format, filtros: params });
     } catch (error) {
         console.error("Axios error during download:", error.toJSON ? error.toJSON() : error);
-        await logAction('ERROR: Export Reporte Activos', { error: error.message, filtros: params }); // Loguear error
+        await logAction('ERROR: Export Reporte Activos', { error: error.message, filtros: params });
         throw error;
     }
 };
 
-// --- Funciones para Permisos (Solo SuperAdmin - Asegúrate que frontend lo controle) ---
-export const getPermisos = async () => {
-    const response = await apiClient.get('/permisos/');
-    return response.data;
-};
+// --- Funciones para Permisos (Solo SuperAdmin) ---
+export const getPermisos = (params) => getItems('/permisos/', params);
 
 export const createPermiso = async (data) => {
     const response = await apiClient.post('/permisos/', data);
-    // Log DESPUÉS de éxito
     await logAction('CREATE: Permiso Global', { id_creado: response.data.id, nombre: data.nombre });
     return response.data;
 };
 
 export const updatePermiso = async (id, data) => {
-    const response = await apiClient.patch(`/permisos/${id}/`, data); // Usando PATCH
-    // Log DESPUÉS de éxito
+    const response = await apiClient.patch(`/permisos/${id}/`, data);
     await logAction('UPDATE: Permiso Global', { id: id, ...data });
     return response.data;
 };
 
 export const deletePermiso = async (id) => {
     await apiClient.delete(`/permisos/${id}/`);
-    // Log DESPUÉS de éxito
     await logAction('DELETE: Permiso Global', { id: id });
 };
 
 // --- Funciones para Mantenimiento ---
-export const getMantenimientos = async () => {
-    const response = await apiClient.get('/mantenimientos/');
-    return response.data;
-};
+export const getMantenimientos = (params) => getItems('/mantenimientos/', params);
 
 export const createMantenimiento = async (data) => {
     const response = await apiClient.post('/mantenimientos/', data);
-    // Log DESPUÉS de éxito
     await logAction('CREATE: Mantenimiento', { id_creado: response.data.id, activo_id: data.activo, tipo: data.tipo });
     return response.data;
 };
 
 export const updateMantenimiento = async (id, data) => {
     const response = await apiClient.patch(`/mantenimientos/${id}/`, data);
-    // Log DESPUÉS de éxito
     await logAction('UPDATE: Mantenimiento', { id: id, ...data });
     return response.data;
 };
 
 export const deleteMantenimiento = async (id) => {
     await apiClient.delete(`/mantenimientos/${id}/`);
-    // Log DESPUÉS de éxito
     await logAction('DELETE: Mantenimiento', { id: id });
 };
 
 export const actualizarEstadoMantenimiento = async (id, data) => {
-    // data debe ser { estado: 'NUEVO_ESTADO', notas_solucion: 'NUEVAS_NOTAS' }
     const response = await apiClient.patch(`/mantenimientos/${id}/actualizar_estado/`, data);
-    // El log ya se hace en el backend para esta acción específica
-    // await logAction('UPDATE_STATUS: Mantenimiento', { id: id, ...data });
     return response.data;
 };
 
 // --- Funciones para Notificaciones ---
-export const getNotificaciones = async () => {
-    const response = await apiClient.get('/notificaciones/');
-    return response.data;
-};
+export const getNotificaciones = (params) => getItems('/notificaciones/', params);
 
-// No logueamos acciones de lectura de notificaciones (muy frecuentes)
 export const markNotificacionLeida = async (id) => {
     const response = await apiClient.post(`/notificaciones/${id}/marcar-leido/`);
     return response.data;
@@ -742,59 +668,42 @@ export const markAllNotificacionesLeidas = async () => {
 };
 
 // --- Funciones para Suscripción ---
-// Solo lectura, no requiere log de acción
-export const getSuscripcion = async () => {
-    const response = await apiClient.get('/suscripcion/');
-    return response.data;
-};
+export const getSuscripcion = () => getItems('/suscripcion/');
 
-// --- [NUEVO] Funciones para Revalorización ---
-export const getRevalorizaciones = async (activoId) => {
-    // Filtra el historial por el ID de un activo específico
-    const response = await apiClient.get('/revalorizaciones/', { params: { activo_id: activoId } });
-    return response.data;
-};
+// --- Funciones para Revalorización ---
+export const getRevalorizaciones = (activoId) => getItems('/revalorizaciones/', { params: { activo_id: activoId } });
 
 export const ejecutarRevalorizacion = async (data) => {
-    // data debe ser { activo_id, factor, notas }
     const response = await apiClient.post('/revalorizaciones/ejecutar/', data);
     await logAction('EXECUTE: Revalorizacion', { activo_id: data.activo_id, factor: data.factor });
     return response.data;
 };
 
-// --- Función para actualizar Tema (ya la tenías) ---
+// --- Función para actualizar Tema ---
 export const updateMyThemePreferences = async (preferences) => {
     const response = await apiClient.patch('/me/theme/', preferences);
-    // Loguear cambio de tema (opcional, puede ser ruidoso)
     await logAction('UPDATE: ThemePreferences', preferences);
     return response.data;
 };
 
+// --- Funciones para Reporte Dinámico ---
 export const getReportePorQuery = async (query) => {
-    const urlPath = 'reportes/query/'; // Nuevo endpoint
+    const urlPath = 'reportes/query/';
     try {
-        // Usamos POST para enviar el array de filtros en el body
         const response = await apiClient.post(urlPath, query); 
-        return response.data; // Devuelve la lista de resultados
+        return response.data;
     } catch (error) {
         console.error("Error fetching query report preview:", error.response?.data || error.message);
         throw error;
     }
 };
 
-/**
- * Exporta un reporte basado en filtros dinámicos.
- * @param {object} query - Objeto que contiene { filters: [...], format: 'pdf' }
- */
 export const downloadReportePorQuery = async (query) => {
-    const urlPath = 'reportes/query/export/'; // Nuevo endpoint de exportación
+    const urlPath = 'reportes/query/export/';
     try {
-        // Usamos POST para enviar filtros y formato, esperamos un 'blob'
         const response = await apiClient.post(urlPath, query, { 
             responseType: 'blob' 
         });
-        
-        // Lógica de descarga (igual que antes)
         const contentType = response.headers['content-type'];
         let filename = query.format === 'excel' ? "reporte_personalizado.xlsx" : "reporte_personalizado.pdf";
         const url = window.URL.createObjectURL(new Blob([response.data], { type: contentType }));
@@ -804,10 +713,7 @@ export const downloadReportePorQuery = async (query) => {
         document.body.appendChild(link);
         link.click();
         link.remove();
-        
-        // Loguear la acción
         await logAction('EXPORT: Reporte Query', { format: query.format, filters: query.filters });
-
     } catch (error) {
         console.error("Axios error during query download:", error.toJSON ? error.toJSON() : error);
         await logAction('ERROR: Export Reporte Query', { error: error.message, filters: query.filters });

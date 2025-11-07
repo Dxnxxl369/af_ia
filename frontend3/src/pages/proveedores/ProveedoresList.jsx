@@ -1,12 +1,14 @@
 // src/pages/proveedores/ProveedoresList.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Truck, Plus, Edit, Trash2, Loader } from 'lucide-react';
-import { getProveedores, createProveedor, updateProveedor, deleteProveedor } from '../../api/dataService'; // Asumimos que ya creaste estas funciones
+import { getProveedores, createProveedor, updateProveedor, deleteProveedor } from '../../api/dataService';
 import Modal from '../../components/Modal';
 import { useNotification } from '../../context/NotificacionContext';
-import { usePermissions } from '../../hooks/usePermissions'; 
-// --- Componentes de ayuda del Formulario ---
+import { usePermissions } from '../../hooks/usePermissions';
+import SearchBar from '../../components/SearchBar';
+import { useDebounce } from '../../hooks/useDebounce';
+
 const FormInput = ({ label, ...props }) => (
     <div className="flex flex-col">
         <label className="text-sm font-medium text-secondary mb-1.5">{label}</label>
@@ -14,7 +16,6 @@ const FormInput = ({ label, ...props }) => (
     </div>
 );
 
-// --- Formulario de Proveedor ---
 const ProveedorForm = ({ proveedor, onSave, onCancel }) => {
     const [formData, setFormData] = useState({
         nombre: proveedor?.nombre || '',
@@ -55,22 +56,26 @@ const ProveedorForm = ({ proveedor, onSave, onCancel }) => {
     );
 };
 
-
-// --- Componente Principal de la Lista ---
 export default function ProveedoresList() {
     const [proveedores, setProveedores] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingProveedor, setEditingProveedor] = useState(null);
     const { showNotification } = useNotification();
-    const { hasPermission, loadingPermissions } = usePermissions(); 
+    const { hasPermission, loadingPermissions } = usePermissions();
+    
+    const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearch = useDebounce(searchTerm, 500);
+
     const canManage = !loadingPermissions && hasPermission('manage_proveedor');
 
-
-    const fetchProveedores = async () => {
+    const fetchProveedores = useCallback(async (search) => {
+        setLoading(true);
         try {
-            setLoading(true);
-            const data = await getProveedores();
+            const params = { search };
+            if (!search) delete params.search;
+
+            const data = await getProveedores(params);
             setProveedores(data.results || data || []);
         } catch (error) { 
             console.error("Error al obtener proveedores:", error); 
@@ -78,9 +83,11 @@ export default function ProveedoresList() {
         } finally { 
             setLoading(false); 
         }
-    };
+    }, [showNotification]);
 
-    useEffect(() => { fetchProveedores(); }, []);
+    useEffect(() => {
+        fetchProveedores(debouncedSearch);
+    }, [debouncedSearch, fetchProveedores]);
 
     const handleCloseModal = () => {
         setIsModalOpen(false);
@@ -96,7 +103,7 @@ export default function ProveedoresList() {
                 await createProveedor(data);
                 showNotification('Proveedor creado con éxito');
             }
-            fetchProveedores();
+            fetchProveedores(debouncedSearch);
             handleCloseModal();
         } catch (error) { 
             console.error("Error al guardar:", error.response?.data || error); 
@@ -109,7 +116,7 @@ export default function ProveedoresList() {
             try {
                 await deleteProveedor(id);
                 showNotification('Proveedor eliminado con éxito');
-                fetchProveedores();
+                fetchProveedores(debouncedSearch);
             } catch (error) { 
                 console.error("Error al eliminar:", error); 
                 showNotification('Error al eliminar el proveedor','error');
@@ -131,10 +138,18 @@ export default function ProveedoresList() {
                         </button>
                     )}
                 </div>
+
+                <div className="mb-6">
+                    <SearchBar 
+                        value={searchTerm}
+                        onChange={setSearchTerm}
+                        placeholder="Buscar por nombre, NIT o email..."
+                    />
+                </div>
                 
                 <div className="bg-secondary border border-theme rounded-xl p-4">
                     {loading ? <div className="flex justify-center items-center h-48"><Loader className="animate-spin text-accent" /></div> :
-                    proveedores.length === 0 ? <p className="text-center text-tertiary py-12">No hay proveedores para mostrar.</p> :
+                    proveedores.length === 0 ? <p className="text-center text-tertiary py-12">No se encontraron proveedores.</p> :
                     proveedores.map((item, index) => (
                         <motion.div
                             key={item.id}

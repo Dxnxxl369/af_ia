@@ -1,9 +1,9 @@
 // src/pages/empleados/EmpleadosList.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { 
     Users, Plus, Edit, Trash2, Loader, DollarSign, 
-    Briefcase, Building2, UserCheck, UploadCloud // <-- Importar UploadCloud
+    Briefcase, Building2, UserCheck, UploadCloud
 } from 'lucide-react';
 import { 
     getEmpleados, createEmpleado, updateEmpleado, deleteEmpleado, 
@@ -12,16 +12,16 @@ import {
 import Modal from '../../components/Modal';
 import { useNotification } from '../../context/NotificacionContext';
 import { usePermissions } from '../../hooks/usePermissions';
+import SearchBar from '../../components/SearchBar';
+import { useDebounce } from '../../hooks/useDebounce';
 
-// --- Componentes de ayuda para el formulario ---
+// --- Componentes de ayuda para el formulario (sin cambios) ---
 const FormInput = ({ label, ...props }) => (
     <div className="flex flex-col">
         <label className="text-sm font-medium text-secondary mb-1.5">{label}</label>
         <input {...props} className="w-full p-3 bg-tertiary rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent" />
     </div>
 );
-
-// --- [NUEVO] Componente de Input de Archivo Personalizado ---
 const FormFileInput = ({ label, onChange, fileName }) => (
     <div className="flex flex-col">
         <label className="text-sm font-medium text-secondary mb-1.5">{label}</label>
@@ -39,7 +39,6 @@ const FormFileInput = ({ label, onChange, fileName }) => (
         </label>
     </div>
 );
-
 const FormSelect = ({ label, children, ...props }) => (
     <div className="flex flex-col">
         <label className="text-sm font-medium text-secondary mb-1.5">{label}</label>
@@ -50,41 +49,29 @@ const FormSelect = ({ label, children, ...props }) => (
     </div>
 );
 
-// --- Formulario de Empleado (Complejo) ---
+// --- Formulario de Empleado (sin cambios) ---
 const EmpleadoForm = ({ empleado, onSave, onCancel }) => {
     const isEditing = !!empleado;
-    
     const [formData, setFormData] = useState({
-        // Campos de User
         username: '',
         password: '',
         first_name: '',
         email: '',
-        
-        // Campos de Empleado
         ci: empleado?.ci || '',
         apellido_p: empleado?.apellido_p || '',
         apellido_m: empleado?.apellido_m || '',
         direccion: empleado?.direccion || '',
         telefono: empleado?.telefono || '',
         sueldo: empleado?.sueldo || '',
-        
-        // Foreign Keys (FKs) - Usamos los IDs que nos da el serializer
         cargo: empleado?.cargo || '',
         departamento: empleado?.departamento || '',
-        
-        // ManyToMany (M2M) - Usamos los IDs que nos da el serializer
         roles: empleado?.roles || [],
     });
-
-    // --- [NUEVO] Estado para el archivo de foto ---
     const [fotoFile, setFotoFile] = useState(null);
-
     const [formDeps, setFormDeps] = useState({ cargos: [], departamentos: [], roles: [] });
     const [loadingDeps, setLoadingDeps] = useState(true);
     const { showNotification } = useNotification();
 
-    // Cargar dependencias y poblar datos de usuario al editar
     useEffect(() => {
         const loadDependencies = async () => {
             try {
@@ -100,8 +87,6 @@ const EmpleadoForm = ({ empleado, onSave, onCancel }) => {
                     roles: rolesRes.results || rolesRes || [],
                 });
                 
-                // Si estamos editando, poblamos los campos de User
-                // (Los datos de 'empleado' vienen de la lista principal, que tiene 'usuario' anidado)
                 if (isEditing && empleado.usuario) {
                     setFormData(prev => ({
                         ...prev,
@@ -119,14 +104,13 @@ const EmpleadoForm = ({ empleado, onSave, onCancel }) => {
             }
         };
         loadDependencies();
-    }, [empleado, isEditing, showNotification]); // Dependencias correctas
+    }, [empleado, isEditing, showNotification]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    // --- [NUEVO] Handler para el archivo de foto ---
     const handleFileChange = (e) => {
         setFotoFile(e.target.files[0]);
     };
@@ -137,55 +121,35 @@ const EmpleadoForm = ({ empleado, onSave, onCancel }) => {
         setFormData(prev => ({ ...prev, [name]: selectedValues }));
     };
 
-    // --- [EDITADO] handleSubmit ahora usa FormData ---
     const handleSubmit = (e) => {
         e.preventDefault();
-        
-        // 1. Crear objeto FormData
         const dataToSend = new FormData();
-
-        // 2. Añadir todos los campos de texto
         Object.keys(formData).forEach(key => {
             const value = formData[key];
-
-            // Si estamos editando, NO enviamos username
             if (isEditing && key === 'username') {
                 return; 
             }
-            
-            // Password: solo enviar si no está vacío
             if (key === 'password') {
                 if (value) {
                     dataToSend.append(key, value);
                 }
-                return; // Continuar
+                return;
             }
-
-            // Manejar Roles (M2M)
             if (key === 'roles') {
                 if (Array.isArray(value)) {
                     value.forEach(roleId => dataToSend.append('roles', roleId));
                 }
-                return; // Continuar
+                return;
             }
-
-            // Manejar FKs opcionales (enviar string vacío si es null/undefined)
             if (key === 'cargo' || key === 'departamento') {
                 dataToSend.append(key, value || '');
                 return;
             }
-
-            // Campos normales
             dataToSend.append(key, value);
         });
-        
-        // 3. Añadir el archivo de foto SI existe
         if (fotoFile) {
             dataToSend.append('foto_perfil', fotoFile);
         }
-        
-        // 4. Enviar el FormData al handler principal
-        // Pasamos el ID del empleado si estamos editando
         onSave(dataToSend, empleado?.id);
     };
 
@@ -195,7 +159,6 @@ const EmpleadoForm = ({ empleado, onSave, onCancel }) => {
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2" autoComplete='off'>
-            
             <fieldset className="border border-theme rounded-lg p-4">
                 <legend className="text-sm font-medium text-accent px-2">Datos de Acceso</legend>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -205,7 +168,6 @@ const EmpleadoForm = ({ empleado, onSave, onCancel }) => {
                     <FormInput name="password" label="Password" type="password" value={formData.password} onChange={handleChange} placeholder={isEditing ? "Dejar en blanco para no cambiar" : "Requerido al crear"} required={!isEditing} autoComplete="new-password" />
                 </div>
             </fieldset>
-
             <fieldset className="border border-theme rounded-lg p-4">
                 <legend className="text-sm font-medium text-accent px-2">Datos Personales</legend>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -213,18 +175,14 @@ const EmpleadoForm = ({ empleado, onSave, onCancel }) => {
                     <FormInput name="apellido_p" label="Apellido Paterno" value={formData.apellido_p} onChange={handleChange} required />
                     <FormInput name="apellido_m" label="Apellido Materno" value={formData.apellido_m} onChange={handleChange} />
                     <FormInput name="telefono" label="Teléfono" value={formData.telefono} onChange={handleChange} />
-                    
-                    {/* --- [NUEVO] Input de Foto --- */}
                     <FormFileInput 
                         label="Foto de Perfil (Opcional)"
                         onChange={handleFileChange}
                         fileName={fotoFile?.name}
                     />
-
                     <FormInput name="direccion" label="Dirección" value={formData.direccion} onChange={handleChange} className="md:col-span-2" />
                 </div>
             </fieldset>
-
             <fieldset className="border border-theme rounded-lg p-4">
                 <legend className="text-sm font-medium text-accent px-2">Datos Laborales</legend>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -251,7 +209,6 @@ const EmpleadoForm = ({ empleado, onSave, onCancel }) => {
                     </div>
                 </div>
             </fieldset>
-            
             <div className="flex justify-end gap-3 pt-4 border-t border-theme">
                 <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg text-primary hover:bg-tertiary">Cancelar</button>
                 <button type="submit" className="px-4 py-2 bg-accent text-white font-semibold rounded-lg hover:bg-opacity-90">Guardar</button>
@@ -259,7 +216,6 @@ const EmpleadoForm = ({ empleado, onSave, onCancel }) => {
         </form>
     );
 };
-
 
 // --- Componente Principal de la Lista ---
 export default function EmpleadosList() {
@@ -269,17 +225,25 @@ export default function EmpleadosList() {
     const [editingEmpleado, setEditingEmpleado] = useState(null);
     const { showNotification } = useNotification();        
     const { hasPermission, loadingPermissions } = usePermissions();
+
+    const [filters, setFilters] = useState({ search: '', departamento: '', cargo: '' });
+    const [filterOptions, setFilterOptions] = useState({ departamentos: [], cargos: [] });
+    const debouncedSearch = useDebounce(filters.search, 500);
+
     const canManage = !loadingPermissions && hasPermission('manage_empleado');
 
-    const fetchEmpleados = async () => {
+    const fetchEmpleados = useCallback(async (currentFilters) => {
+        setLoading(true);
         try {
-            setLoading(true);
-            const data = await getEmpleados();
-            // Los serializers del backend ahora devuelven 'foto_perfil' y los IDs
+            const cleanFilters = Object.entries(currentFilters).reduce((acc, [key, value]) => {
+                if (value) acc[key] = value;
+                return acc;
+            }, {});
+
+            const data = await getEmpleados(cleanFilters);
             const processedData = (data.results || data || []).map(emp => ({
                 ...emp,
                 nombre_completo: `${emp.usuario.first_name} ${emp.apellido_p}`,
-                // Usamos los campos _nombre que vienen del serializer
                 cargo_nombre: emp.cargo_nombre || 'N/A',
                 departamento_nombre: emp.departamento_nombre || 'N/A',
             }));
@@ -290,21 +254,43 @@ export default function EmpleadosList() {
         } finally { 
             setLoading(false); 
         }
+    }, [showNotification]);
+
+    useEffect(() => {
+        const loadFilterOptions = async () => {
+            try {
+                const [deptosRes, cargosRes] = await Promise.all([getDepartamentos(), getCargos()]);
+                setFilterOptions({
+                    departamentos: deptosRes.results || deptosRes || [],
+                    cargos: cargosRes.results || cargosRes || []
+                });
+            } catch (error) {
+                showNotification('Error al cargar opciones de filtro', 'error');
+            }
+        };
+        loadFilterOptions();
+    }, [showNotification]);
+
+    useEffect(() => {
+        const currentFilters = { ...filters, search: debouncedSearch };
+        fetchEmpleados(currentFilters);
+    }, [debouncedSearch, filters.departamento, filters.cargo, fetchEmpleados]);
+
+    const handleFilterChange = (e) => {
+        const { name, value } = e.target;
+        setFilters(prev => ({ ...prev, [name]: value }));
     };
 
-    useEffect(() => { fetchEmpleados(); }, []);    
-
-    // --- [EDITADO] handleSave ahora espera (FormData, empleadoId) ---
     const handleSave = async (formData, empleadoId) => { 
         try {
-            if (empleadoId) { // Editando
-                await updateEmpleado(empleadoId, formData); // Pasa FormData
+            if (empleadoId) {
+                await updateEmpleado(empleadoId, formData);
                 showNotification('Empleado actualizado con éxito');
-            } else { // Creando
-                await createEmpleado(formData); // Pasa FormData
+            } else {
+                await createEmpleado(formData);
                 showNotification('Empleado creado con éxito');
             }
-            fetchEmpleados();
+            fetchEmpleados({ ...filters, search: debouncedSearch });
             setIsModalOpen(false);
             setEditingEmpleado(null);
         } catch (error) { 
@@ -312,7 +298,6 @@ export default function EmpleadosList() {
             let errorMsg = 'Error al guardar el empleado';
             if (error.response?.data) {
                 const errors = error.response.data;
-                // Manejar errores de límite de suscripción
                 if (errors.detail) {
                     errorMsg = errors.detail;
                 } else {
@@ -329,7 +314,7 @@ export default function EmpleadosList() {
             try {
                 await deleteEmpleado(id);
                 showNotification('Empleado eliminado con éxito');
-                fetchEmpleados();
+                fetchEmpleados({ ...filters, search: debouncedSearch });
             } catch (error) { 
                 console.error("Error al eliminar:", error); 
                 showNotification('Error al eliminar el empleado','error');
@@ -366,10 +351,27 @@ export default function EmpleadosList() {
                         </button>  
                     )}                                  
                 </div>
+
+                <div className="mb-6 flex flex-col md:flex-row gap-4">
+                    <SearchBar 
+                        value={filters.search}
+                        onChange={(value) => setFilters(prev => ({ ...prev, search: value }))}
+                        placeholder="Buscar por nombre, CI, email..."
+                        className="flex-grow"
+                    />
+                    <FormSelect name="departamento" value={filters.departamento} onChange={handleFilterChange} className="md:max-w-xs">
+                        <option value="">Todos los Departamentos</option>
+                        {filterOptions.departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
+                    </FormSelect>
+                    <FormSelect name="cargo" value={filters.cargo} onChange={handleFilterChange} className="md:max-w-xs">
+                        <option value="">Todos los Cargos</option>
+                        {filterOptions.cargos.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                    </FormSelect>
+                </div>
                 
                 <div className="bg-secondary border border-theme rounded-xl p-4">
                     {loading ? <div className="flex justify-center items-center h-48"><Loader className="animate-spin text-accent" /></div> :
-                    empleados.length === 0 ? <p className="text-center text-tertiary py-12">No hay empleados para mostrar.</p> :
+                    empleados.length === 0 ? <p className="text-center text-tertiary py-12">No se encontraron empleados con los filtros actuales.</p> :
                     empleados.map((emp, index) => (
                         <motion.div
                             key={emp.id}
@@ -378,14 +380,13 @@ export default function EmpleadosList() {
                             transition={{ delay: index * 0.05 }}
                             className="flex items-center p-3 border-b border-theme last:border-b-0 hover:bg-tertiary rounded-lg"
                         >
-                            {/* --- [EDITADO] Mostrar Foto de Perfil --- */}
                             <div className="p-0 bg-accent bg-opacity-10 rounded-full mr-4 flex-shrink-0">
                                 {emp.foto_perfil ? (
                                     <img 
-                                        src={emp.foto_perfil} // <-- URL de la foto
+                                        src={emp.foto_perfil}
                                         alt={`Foto de ${emp.nombre_completo}`}
                                         className="w-10 h-10 rounded-full object-cover" 
-                                        onError={(e) => { console.error("Error cargando imagen:", emp.foto_perfil, e); e.target.style.display='none'; /* Ocultar si falla */ }}
+                                        onError={(e) => { console.error("Error cargando imagen:", emp.foto_perfil, e); e.target.style.display='none'; }}
                                     />
                                 ) : (
                                     <div className="w-10 h-10 flex items-center justify-center">

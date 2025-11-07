@@ -62,8 +62,24 @@ export default function ReportesPage() {
         setLoadingPreview(true);
         setResultados(null);
         try {
-            // Enviamos el array de filtros al backend
-            const data = await getReportePorQuery({ filters });
+            // Traduce alias a nombres de campo reales antes de enviar
+            const translatedFilters = filters.map(f => {
+                const lowerF = f.toLowerCase();
+                if (lowerF.startsWith('categoria:')) {
+                    return `item_catalogo:${f.substring('categoria:'.length)}`;
+                }
+                if (lowerF.startsWith('depto:')) {
+                    return `departamento:${f.substring('depto:'.length)}`;
+                }
+                return f;
+            });
+
+            // --- DEBUG: Usa un alert para forzar la visualización de los datos ---
+            alert("Filtros que se enviarán al backend:\n" + JSON.stringify(translatedFilters, null, 2));
+
+            // Enviamos el array de filtros traducido al backend
+            const data = await getReportePorQuery({ filters: translatedFilters });
+
             setResultados(data || []);
             if (!data || data.length === 0) {
                 showNotification('No se encontraron resultados con esos filtros');
@@ -84,8 +100,19 @@ export default function ReportesPage() {
         }
         setLoadingExport(true);
         try {
-            // Usamos la nueva función de exportación por query
-            await downloadReportePorQuery({ filters, format });
+            // Traduce alias a nombres de campo reales antes de enviar
+            const translatedFilters = filters.map(f => {
+                const lowerF = f.toLowerCase();
+                if (lowerF.startsWith('categoria:')) {
+                    return `item_catalogo:${f.substring('categoria:'.length)}`;
+                }
+                if (lowerF.startsWith('depto:')) {
+                    return `departamento:${f.substring('depto:'.length)}`;
+                }
+                return f;
+            });
+            // Usamos la nueva función de exportación por query con filtros traducidos
+            await downloadReportePorQuery({ filters: translatedFilters, format });
         } catch (error) {
             console.error("Error al exportar:", error);
             showNotification(error.response?.data?.detail || 'Error al exportar el reporte', 'error');

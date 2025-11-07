@@ -1,13 +1,14 @@
 // src/pages/presupuestos/PresupuestosList.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { PiggyBank, Plus, Edit, Trash2, Loader, Building2 } from 'lucide-react';
 import { getPresupuestos, createPresupuesto, updatePresupuesto, deletePresupuesto, getDepartamentos } from '../../api/dataService';
 import Modal from '../../components/Modal';
 import { useNotification } from '../../context/NotificacionContext';
 import { usePermissions } from '../../hooks/usePermissions';
+import SearchBar from '../../components/SearchBar';
+import { useDebounce } from '../../hooks/useDebounce';
 
-// --- Componentes de ayuda del Formulario ---
 const FormInput = ({ label, ...props }) => (
     <div className="flex flex-col">
         <label className="text-sm font-medium text-secondary mb-1.5">{label}</label>
@@ -19,15 +20,12 @@ const FormSelect = ({ label, children, ...props }) => (
     <div className="flex flex-col">
         <label className="text-sm font-medium text-secondary mb-1.5">{label}</label>
         <select {...props} className="w-full p-3 bg-tertiary rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent appearance-none">
-            <option value="" disabled>-- Seleccione --</option>
             {children}
         </select>
     </div>
 );
 
-// --- Formulario de Presupuesto ---
 const PresupuestoForm = ({ presupuesto, onSave, onCancel }) => {
-    // El serializer de 'create' espera 'departamento_id'
     const [departamentoId, setDepartamentoId] = useState(presupuesto?.departamento?.id || presupuesto?.departamento_id || '');
     const [monto, setMonto] = useState(presupuesto?.monto || '');
     const [fecha, setFecha] = useState((presupuesto?.fecha || '').split('T')[0]);
@@ -53,14 +51,13 @@ const PresupuestoForm = ({ presupuesto, onSave, onCancel }) => {
         loadDepartamentos();
     }, [showNotification]);
 
-
     const handleSubmit = (e) => {
         e.preventDefault();
         onSave({ 
             monto, 
             fecha, 
             descripcion, 
-            departamento_id: departamentoId // El serializer espera 'departamento_id'
+            departamento_id: departamentoId
         });
     };
 
@@ -71,6 +68,7 @@ const PresupuestoForm = ({ presupuesto, onSave, onCancel }) => {
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <FormSelect label="Departamento" value={departamentoId} onChange={(e) => setDepartamentoId(e.target.value)} required>
+                <option value="" disabled>-- Seleccione --</option>
                 {departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
             </FormSelect>
             <FormInput label="Monto (Bs.)" type="number" step="0.01" min="0" value={monto} onChange={(e) => setMonto(e.target.value)} required />
@@ -85,8 +83,6 @@ const PresupuestoForm = ({ presupuesto, onSave, onCancel }) => {
     );
 };
 
-
-// --- Componente Principal de la Lista ---
 export default function PresupuestosList() {
     const [presupuestos, setPresupuestos] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -95,10 +91,20 @@ export default function PresupuestosList() {
     const { showNotification } = useNotification();
     const { hasPermission, loadingPermissions } = usePermissions();
 
-    const fetchPresupuestos = async () => {
+    const [filters, setFilters] = useState({ search: '', departamento: '' });
+    const [departamentos, setDepartamentos] = useState([]);
+    const debouncedSearch = useDebounce(filters.search, 500);
+
+    const canManage = !loadingPermissions && hasPermission('manage_presupuesto');
+
+    const fetchPresupuestos = useCallback(async (currentFilters) => {
+        setLoading(true);
         try {
-            setLoading(true);
-            const data = await getPresupuestos();
+            const cleanFilters = Object.entries(currentFilters).reduce((acc, [key, value]) => {
+                if (value) acc[key] = value;
+                return acc;
+            }, {});
+            const data = await getPresupuestos(cleanFilters);
             setPresupuestos(data.results || data || []);
         } catch (error) { 
             console.error("Error al obtener presupuestos:", error); 
@@ -106,10 +112,29 @@ export default function PresupuestosList() {
         } finally { 
             setLoading(false); 
         }
-    };
+    }, [showNotification]);
 
-    const canManage = !loadingPermissions && hasPermission('manage_presupuesto');
-    useEffect(() => { fetchPresupuestos(); }, []);
+    useEffect(() => {
+        const loadDepartamentos = async () => {
+            try {
+                const data = await getDepartamentos();
+                setDepartamentos(data.results || data || []);
+            } catch (error) {
+                showNotification('Error al cargar los departamentos para el filtro', 'error');
+            }
+        };
+        loadDepartamentos();
+    }, [showNotification]);
+
+    useEffect(() => {
+        const currentFilters = { ...filters, search: debouncedSearch };
+        fetchPresupuestos(currentFilters);
+    }, [debouncedSearch, filters.departamento, fetchPresupuestos]);
+
+    const handleFilterChange = (e) => {
+        const { name, value } = e.target;
+        setFilters(prev => ({ ...prev, [name]: value }));
+    };
 
     const handleCloseModal = () => {
         setIsModalOpen(false);
@@ -125,7 +150,7 @@ export default function PresupuestosList() {
                 await createPresupuesto(data);
                 showNotification('Presupuesto creado con éxito');
             }
-            fetchPresupuestos();
+            fetchPresupuestos({ ...filters, search: debouncedSearch });
             handleCloseModal();
         } catch (error) { 
             console.error("Error al guardar:", error.response?.data || error); 
@@ -138,7 +163,7 @@ export default function PresupuestosList() {
             try {
                 await deletePresupuesto(id);
                 showNotification('Presupuesto eliminado con éxito');
-                fetchPresupuestos();
+                fetchPresupuestos({ ...filters, search: debouncedSearch });
             } catch (error) { 
                 console.error("Error al eliminar:", error); 
                 showNotification('Error al eliminar el presupuesto','error');
@@ -160,10 +185,23 @@ export default function PresupuestosList() {
                         </button>
                     )}
                 </div>
+
+                <div className="mb-6 flex flex-col md:flex-row gap-4">
+                    <SearchBar 
+                        value={filters.search}
+                        onChange={(value) => setFilters(prev => ({ ...prev, search: value }))}
+                        placeholder="Buscar por descripción..."
+                        className="flex-grow"
+                    />
+                    <FormSelect name="departamento" value={filters.departamento} onChange={handleFilterChange} className="md:max-w-xs">
+                        <option value="">Todos los Departamentos</option>
+                        {departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
+                    </FormSelect>
+                </div>
                 
                 <div className="bg-secondary border border-theme rounded-xl p-4">
                     {loading ? <div className="flex justify-center items-center h-48"><Loader className="animate-spin text-accent" /></div> :
-                    presupuestos.length === 0 ? <p className="text-center text-tertiary py-12">No hay presupuestos para mostrar.</p> :
+                    presupuestos.length === 0 ? <p className="text-center text-tertiary py-12">No se encontraron presupuestos.</p> :
                     presupuestos.map((item, index) => (
                         <motion.div
                             key={item.id}

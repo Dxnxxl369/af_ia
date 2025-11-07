@@ -2,21 +2,23 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FolderTree, Plus, Edit, Trash2, Loader } from 'lucide-react';
-import { getCategoriasActivos, createCategoriaActivo, updateCategoriaActivo, deleteCategoriaActivo } from '../../api/dataService';
+// 1. Importar las funciones con el nombre corregido
+import { getItemsCatalogo, createItemCatalogo, updateItemCatalogo, deleteItemCatalogo } from '../../api/dataService';
 import Modal from '../../components/Modal';
 import { useNotification } from '../../context/NotificacionContext';
 import { usePermissions } from '../../hooks/usePermissions'; 
 
-// Formulario para Crear/Editar
-const CategoriaForm = ({ categoria, onSave, onCancel }) => {
-    const [nombre, setNombre] = useState(categoria?.nombre || '');
-    const [descripcion, setDescripcion] = useState(categoria?.descripcion || '');
-    const handleSubmit = (e) => { e.preventDefault(); onSave({ nombre, descripcion }); };
+// Formulario para Crear/Editar (ahora para ItemCatalogo)
+const ItemCatalogoForm = ({ item, onSave, onCancel }) => {
+    const [nombre, setNombre] = useState(item?.nombre || '');
+    // 2. Cambiar "descripcion" por "tipo_item" para que coincida con el modelo
+    const [tipoItem, setTipoItem] = useState(item?.tipo_item || '');
+    const handleSubmit = (e) => { e.preventDefault(); onSave({ nombre, tipo_item: tipoItem }); };
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
-            <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre de la Categoría" required className="w-full p-3 bg-tertiary rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent" />
-            <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} placeholder="Descripción (Opcional)" rows={3} className="w-full p-3 bg-tertiary rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent" />
+            <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Nombre del Item" required className="w-full p-3 bg-tertiary rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent" />
+            <input value={tipoItem} onChange={(e) => setTipoItem(e.target.value)} placeholder="Tipo de Item (Ej: Mobiliario, Equipo de Cómputo)" required className="w-full p-3 bg-tertiary rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent" />
             <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg text-primary hover:bg-tertiary">Cancelar</button>
                 <button type="submit" className="px-4 py-2 bg-accent text-white font-semibold rounded-lg hover:bg-opacity-90">Guardar</button>
@@ -25,60 +27,65 @@ const CategoriaForm = ({ categoria, onSave, onCancel }) => {
     );
 };
 
-export default function CategoriasActivosList() {
-    const [categorias, setCategorias] = useState([]);
+export default function ItemsCatalogoList() { // 3. Renombrar componente
+    const [items, setItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingCategoria, setEditingCategoria] = useState(null);
+    const [editingItem, setEditingItem] = useState(null);
     const { showNotification } = useNotification();
     const { hasPermission, loadingPermissions } = usePermissions(); 
-    const canManage = !loadingPermissions && hasPermission('manage_categoriaactivo');
+    // 4. Usar el permiso correcto
+    const canManage = !loadingPermissions && hasPermission('manage_itemcatalogo');
 
-    const fetchCategorias = async () => {
+    const fetchItems = async () => {
         try {
             setLoading(true);
-            const data = await getCategoriasActivos();
-            setCategorias(data.results || data || []);
+            // 5. Usar la función de fetch correcta
+            const data = await getItemsCatalogo();
+            setItems(data.results || data || []);
         } catch (error) { 
-            console.error("Error al obtener categorías:", error); 
-            showNotification('Error al cargar las categorías','error');
+            console.error("Error al obtener items del catálogo:", error); 
+            showNotification('Error al cargar el catálogo','error');
         }
         finally { setLoading(false); }
     };
 
-    useEffect(() => { fetchCategorias(); }, []);    
+    useEffect(() => { fetchItems(); }, []);    
 
     const handleCloseModal = () => {
         setIsModalOpen(false);
-        setEditingCategoria(null);
+        setEditingItem(null);
     };
 
     const handleSave = async (data) => {
         try {
-            if (editingCategoria) {
-                await updateCategoriaActivo(editingCategoria.id, data);
-                showNotification('Categoría actualizada con éxito');
+            if (editingItem) {
+                // 6. Usar la función de update correcta
+                await updateItemCatalogo(editingItem.id, data);
+                showNotification('Item actualizado con éxito');
             } else {                
-                await createCategoriaActivo(data);
-                showNotification('Categoría creada con éxito');
+                // 7. Usar la función de create correcta
+                await createItemCatalogo(data);
+                showNotification('Item creado con éxito');
             }
-            fetchCategorias();
+            fetchItems();
             handleCloseModal();
         } catch (error) { 
-            console.error("Error al guardar:", error); 
-            showNotification('Error al guardar la categoría', 'error');
+            console.error("Error al guardar item:", error); 
+            showNotification('Error al guardar el item', 'error');
         }    
     };
 
     const handleDelete = async (id) => {
-        if (window.confirm('¿Seguro que quieres eliminar esta categoría?')) {
+        if (window.confirm('¿Seguro que quieres eliminar este item del catálogo?')) {
             try {
-                await deleteCategoriaActivo(id);
-                showNotification('Categoría eliminada con éxito');
-                fetchCategorias();
+                // 8. Usar la función de delete correcta
+                await deleteItemCatalogo(id);
+                showNotification('Item eliminado con éxito');
+                fetchItems();
             } catch (error) { 
-                console.error("Error al eliminar:", error); 
-                showNotification('Error al eliminar la categoría','error');
+                console.error("Error al eliminar item:", error); 
+                showNotification('Error al eliminar el item','error');
             }
         }
     };
@@ -88,20 +95,21 @@ export default function CategoriasActivosList() {
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
                 <div className="mb-8 flex justify-between items-center">
                     <div>
-                        <h1 className="text-4xl font-bold text-primary mb-2">Categorías de Activos</h1>
-                        <p className="text-secondary">Organiza los tipos de activos fijos.</p>
+                        {/* 9. Actualizar textos */}
+                        <h1 className="text-4xl font-bold text-primary mb-2">Catálogo de Items</h1>
+                        <p className="text-secondary">Define los tipos de bienes que la empresa puede adquirir.</p>
                     </div>
                     {canManage && (
-                        <button onClick={() => { setEditingCategoria(null); setIsModalOpen(true); }} className="flex items-center gap-2 bg-accent text-white font-semibold px-4 py-2 rounded-lg hover:bg-opacity-90 transition-transform active:scale-95">
-                            <Plus size={20} /> Nueva Categoría
+                        <button onClick={() => { setEditingItem(null); setIsModalOpen(true); }} className="flex items-center gap-2 bg-accent text-white font-semibold px-4 py-2 rounded-lg hover:bg-opacity-90 transition-transform active:scale-95">
+                            <Plus size={20} /> Nuevo Item
                         </button>
                     )}
                 </div>
                 
                 <div className="bg-secondary border border-theme rounded-xl p-4">
                     {loading ? <div className="flex justify-center items-center h-48"><Loader className="animate-spin text-accent" /></div> :
-                    categorias.length === 0 ? <p className="text-center text-tertiary py-12">No hay categorías para mostrar.</p> :
-                    categorias.map((item, index) => (
+                    items.length === 0 ? <p className="text-center text-tertiary py-12">No hay items en el catálogo.</p> :
+                    items.map((item, index) => (
                         <motion.div
                             key={item.id}
                             initial={{ opacity: 0, y: 20 }}
@@ -114,11 +122,12 @@ export default function CategoriasActivosList() {
                             </div>
                             <div className="flex-1">
                                 <p className="font-semibold text-primary">{item.nombre}</p>
-                                <p className="text-sm text-secondary">{item.descripcion || 'Sin descripción'}</p>
+                                {/* 10. Mostrar tipo_item en lugar de descripción */}
+                                <p className="text-sm text-secondary">Tipo: {item.tipo_item || 'No especificado'}</p>
                             </div>
                             {canManage && (
                                 <div className="flex gap-2">
-                                    <button onClick={() => { setEditingCategoria(item); setIsModalOpen(true); }} className="p-2 text-primary hover:text-accent"><Edit size={18} /></button>
+                                    <button onClick={() => { setEditingItem(item); setIsModalOpen(true); }} className="p-2 text-primary hover:text-accent"><Edit size={18} /></button>
                                     <button onClick={() => handleDelete(item.id)} className="p-2 text-primary hover:text-red-500"><Trash2 size={18} /></button>
                                 </div>
                             )}
@@ -127,8 +136,8 @@ export default function CategoriasActivosList() {
                 </div>
             </motion.div>
 
-            <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingCategoria ? "Editar Categoría" : "Nueva Categoría"}>
-                <CategoriaForm categoria={editingCategoria} onSave={handleSave} onCancel={handleCloseModal} />
+            <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingItem ? "Editar Item del Catálogo" : "Nuevo Item al Catálogo"}>
+                <ItemCatalogoForm item={editingItem} onSave={handleSave} onCancel={handleCloseModal} />
             </Modal>
         </>
     );

@@ -196,7 +196,6 @@ class ActivoFijoSerializer(serializers.ModelSerializer):
         fields = '__all__' # Incluye 'foto_activo'
 
 class PresupuestoSerializer(serializers.ModelSerializer):
-    empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())
     # Le decimos que anide la información del departamento al leer
     departamento = DepartamentoSerializer(read_only=True)
     # Al escribir, esperamos solo el ID del departamento
@@ -206,7 +205,7 @@ class PresupuestoSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Presupuesto
-        fields = ['id', 'descripcion', 'monto', 'fecha', 'departamento', 'departamento_id', 'empresa']
+        fields = ['id', 'descripcion', 'monto', 'fecha', 'departamento', 'departamento_id']
         
 class EstadoSerializer(serializers.ModelSerializer):
     empresa = serializers.HiddenField(default=CurrentUserEmpresaDefault())

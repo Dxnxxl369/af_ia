@@ -1,18 +1,19 @@
 // src/pages/mantenimiento/MantenimientoList.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Wrench, Plus, Edit, Trash2, Loader, DollarSign, Box, User, CheckSquare } from 'lucide-react';
 import { 
     getMantenimientos, createMantenimiento, updateMantenimiento, deleteMantenimiento,
-    getActivosFijos, // <-- Dependencia
-    getEmpleados, actualizarEstadoMantenimiento    // <-- Dependencia
+    getActivosFijos, getEmpleados, actualizarEstadoMantenimiento
 } from '../../api/dataService';
 import Modal from '../../components/Modal';
 import { useNotification } from '../../context/NotificacionContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useAuth } from '../../context/AuthContext';
+import SearchBar from '../../components/SearchBar';
+import { useDebounce } from '../../hooks/useDebounce';
 
-// --- Componentes de ayuda para el formulario ---
+// --- Componentes de ayuda para el formulario (sin cambios) ---
 const FormInput = ({ label, ...props }) => (
     <div className="flex flex-col">
         <label className="text-sm font-medium text-secondary mb-1.5">{label}</label>
@@ -24,7 +25,6 @@ const FormSelect = ({ label, children, ...props }) => (
     <div className="flex flex-col">
         <label className="text-sm font-medium text-secondary mb-1.5">{label}</label>
         <select {...props} className="w-full p-3 bg-tertiary rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent appearance-none">
-            <option value="" disabled>-- Seleccione --</option>
             {children}
         </select>
     </div>
@@ -37,12 +37,11 @@ const FormTextArea = ({ label, ...props }) => (
     </div>
 );
 
-
-// --- Formulario de Mantenimiento ---
+// --- Formulario de Mantenimiento (sin cambios) ---
 const MantenimientoForm = ({ mantenimiento, onSave, onCancel }) => {
     const [formData, setFormData] = useState({
-        activo_id: mantenimiento?.activo?.id || '', // <-- Cambiado de 'activo'
-        empleado_asignado_id: mantenimiento?.empleado_asignado?.id || '', // <-- Cambiado de 'empleado_asignado'
+        activo_id: mantenimiento?.activo?.id || '',
+        empleado_asignado_id: mantenimiento?.empleado_asignado?.id || '',
         tipo: mantenimiento?.tipo || 'CORRECTIVO',
         estado: mantenimiento?.estado || 'PENDIENTE',
         descripcion_problema: mantenimiento?.descripcion_problema || '',
@@ -84,12 +83,9 @@ const MantenimientoForm = ({ mantenimiento, onSave, onCancel }) => {
     const handleSubmit = (e) => {
         e.preventDefault();
         let dataToSave = { ...formData };
-        // Limpiamos FKs opcionales si están vacíos
-        // El backend espera null si el ID está vacío
         if (!dataToSave.empleado_asignado_id) {
              dataToSave.empleado_asignado_id = null;
         }
-        // Asegurarse de enviar solo los campos que el serializer espera al escribir
         const finalData = {
             activo_id: dataToSave.activo_id,
             empleado_asignado_id: dataToSave.empleado_asignado_id,
@@ -99,7 +95,7 @@ const MantenimientoForm = ({ mantenimiento, onSave, onCancel }) => {
             notas_solucion: dataToSave.notas_solucion,
             costo: dataToSave.costo,
         };
-        onSave(finalData); // Enviar solo los datos necesarios para POST/PATCH
+        onSave(finalData);
     };
 
     if (loadingDeps) {
@@ -108,17 +104,14 @@ const MantenimientoForm = ({ mantenimiento, onSave, onCancel }) => {
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-            
             <FormSelect name="activo_id" label="Activo Fijo (Requerido)" value={formData.activo_id} onChange={handleChange} required>
+                <option value="" disabled>-- Seleccione --</option>
                 {formDeps.activos.map(a => <option key={a.id} value={a.id}>{a.nombre} ({a.codigo_interno})</option>)}
             </FormSelect>
-
             <FormSelect name="empleado_asignado_id" label="Asignar a Empleado (Opcional)" value={formData.empleado_asignado_id} onChange={handleChange}>
                 <option value="">-- Ninguno --</option>
-                {/* Asegúrate que 'e.usuario' existe y tiene 'first_name' */}
                 {formDeps.empleados.map(e => <option key={e.id} value={e.id}>{e.usuario?.first_name || 'Usuario'} {e.apellido_p || ''}</option>)}
             </FormSelect>
-            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                  <FormSelect name="tipo" label="Tipo de Mantenimiento" value={formData.tipo} onChange={handleChange} required>
                     <option value="CORRECTIVO">Correctivo</option>
@@ -130,11 +123,9 @@ const MantenimientoForm = ({ mantenimiento, onSave, onCancel }) => {
                     <option value="COMPLETADO">Completado</option>
                 </FormSelect>
             </div>
-
             <FormTextArea name="descripcion_problema" label="Descripción del Problema/Tarea" value={formData.descripcion_problema} onChange={handleChange} required />
             <FormTextArea name="notas_solucion" label="Notas de Solución (Opcional)" value={formData.notas_solucion} onChange={handleChange} />
             <FormInput name="costo" label="Costo (Bs.)" type="number" step="0.01" min="0" value={formData.costo} onChange={handleChange} />
-            
             <div className="flex justify-end gap-3 pt-4 border-t border-theme">
                 <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg text-primary hover:bg-tertiary">Cancelar</button>
                 <button type="submit" className="px-4 py-2 bg-accent text-white font-semibold rounded-lg hover:bg-opacity-90">Guardar</button>
@@ -143,6 +134,7 @@ const MantenimientoForm = ({ mantenimiento, onSave, onCancel }) => {
     );
 };
 
+// --- Formulario de Actualización de Estado (sin cambios) ---
 const UpdateStatusForm = ({ mantenimiento, onSave, onCancel }) => {
     const [estado, setEstado] = useState(mantenimiento?.estado || 'PENDIENTE');
     const [notas, setNotas] = useState(mantenimiento?.notas_solucion || '');
@@ -154,22 +146,15 @@ const UpdateStatusForm = ({ mantenimiento, onSave, onCancel }) => {
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
-             {/* Mostrar info del activo (solo lectura) */}
              <div className='mb-4 p-3 bg-tertiary rounded'>
                  <p className='text-sm text-secondary'>Activo:</p>
                  <p className='font-medium text-primary'>{mantenimiento?.activo?.nombre || 'N/A'}</p>
              </div>
-
             <FormSelect name="estado" label="Nuevo Estado" value={estado} onChange={(e) => setEstado(e.target.value)} required>
-                {/* Opciones que un empleado puede poner */}
                 <option value="EN_PROGRESO">En Progreso</option>
                 <option value="COMPLETADO">Completado</option>
-                {/* <option value="PENDIENTE">Pendiente</option>  Quizás no debería poder volver a pendiente */}
             </FormSelect>
             <FormTextArea name="notas_solucion" label="Notas Adicionales" value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Añade notas sobre el trabajo realizado..."/>
-
-             {/* Aquí podrías añadir un input para 'foto_evidencia' */}
-
             <div className="flex justify-end gap-3 pt-4 border-t border-theme">
                 <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg text-primary hover:bg-tertiary">Cancelar</button>
                 <button type="submit" className="px-4 py-2 bg-accent text-white font-semibold rounded-lg hover:bg-opacity-90">Actualizar</button>
@@ -185,23 +170,28 @@ export default function MantenimientoList() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingMantenimiento, setEditingMantenimiento] = useState(null);
     const { showNotification } = useNotification();
-    const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false); // <-- Nuevo estado para el modal de estado
-    const [updatingMantenimiento, setUpdatingMantenimiento] = useState(null); // <-- Mantenimiento a actualizar estado
+    const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+    const [updatingMantenimiento, setUpdatingMantenimiento] = useState(null);
     const { hasPermission, loadingPermissions } = usePermissions();
     const { user } = useAuth();
-    const canManage = !loadingPermissions && hasPermission('manage_mantenimiento');
-    const canView = !loadingPermissions && hasPermission('view_mantenimiento'); // Ver lista (Todos)
 
-    const fetchMantenimientos = async () => {
+    const [filters, setFilters] = useState({ search: '', tipo: '', estado: '' });
+    const debouncedSearch = useDebounce(filters.search, 500);
+
+    const canManage = !loadingPermissions && hasPermission('manage_mantenimiento');
+
+    const fetchMantenimientos = useCallback(async (currentFilters) => {
+        setLoading(true);
         try {
-            setLoading(true);
-            const data = await getMantenimientos();
-            // Pre-procesar datos para mostrar nombres
+            const cleanFilters = Object.entries(currentFilters).reduce((acc, [key, value]) => {
+                if (value) acc[key] = value;
+                return acc;
+            }, {});
+
+            const data = await getMantenimientos(cleanFilters);
             const processedData = (data.results || data || []).map(m => ({
                 ...m,
-                // 'activo' ya viene anidado por el serializer
                 activo_nombre: m.activo?.nombre || 'Activo Eliminado',
-                // Acceder al nombre a través del objeto anidado
                 empleado_nombre: m.empleado_asignado
                                  ? `${m.empleado_asignado.usuario?.first_name || ''} ${m.empleado_asignado.apellido_p || ''}`.trim()
                                  : 'N/A',
@@ -213,9 +203,17 @@ export default function MantenimientoList() {
         } finally { 
             setLoading(false); 
         }
-    };
+    }, [showNotification]);
 
-    useEffect(() => { fetchMantenimientos(); }, []);
+    useEffect(() => {
+        const currentFilters = { ...filters, search: debouncedSearch };
+        fetchMantenimientos(currentFilters);
+    }, [debouncedSearch, filters.tipo, filters.estado, fetchMantenimientos]);
+
+    const handleFilterChange = (e) => {
+        const { name, value } = e.target;
+        setFilters(prev => ({ ...prev, [name]: value }));
+    };
 
     const handleSave = async (data) => {
         try {
@@ -226,7 +224,7 @@ export default function MantenimientoList() {
                 await createMantenimiento(data);
                 showNotification('Mantenimiento registrado');
             }
-            fetchMantenimientos();
+            fetchMantenimientos({ ...filters, search: debouncedSearch });
             handleCloseModal();
         } catch (error) { 
             console.error("Error al guardar:", error.response?.data || error.message);
@@ -239,7 +237,7 @@ export default function MantenimientoList() {
             try {
                 await deleteMantenimiento(id);
                 showNotification('Registro eliminado');
-                fetchMantenimientos();
+                fetchMantenimientos({ ...filters, search: debouncedSearch });
             } catch (error) { 
                 console.error("Error al eliminar:", error); 
                 showNotification('Error al eliminar','error');
@@ -252,7 +250,7 @@ export default function MantenimientoList() {
         try {
             await actualizarEstadoMantenimiento(updatingMantenimiento.id, updateData);
             showNotification('Estado del mantenimiento actualizado');
-            fetchMantenimientos();
+            fetchMantenimientos({ ...filters, search: debouncedSearch });
             handleCloseUpdateModal();
         } catch (error) {
             console.error("Error al actualizar estado:", error.response?.data || error.message);
@@ -288,18 +286,15 @@ export default function MantenimientoList() {
     };
 
     const currentEmpleadoId = user?.empleado_id;
-    console.log("MantenimientoList: Current Empleado ID:", currentEmpleadoId); // Para depurar
     
     return (
         <>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-                {/* --- Encabezado --- */}
                 <div className="mb-8 flex justify-between items-center">
                     <div>
                         <h1 className="text-4xl font-bold text-primary mb-2">Mantenimientos</h1>
                         <p className="text-secondary">Gestiona el historial de reparaciones y preventivos.</p>
                     </div>
-                    {/* Botón "Nuevo" solo visible para quien tenga permiso 'manage_mantenimiento' */}
                     {canManage && (
                         <button onClick={openCreateModal} className="flex items-center gap-2 bg-accent text-white font-semibold px-4 py-2 rounded-lg hover:bg-opacity-90 transition-transform active:scale-95">
                             <Plus size={20} /> Nuevo Registro
@@ -307,18 +302,34 @@ export default function MantenimientoList() {
                     )}
                 </div>
 
-                {/* --- Lista de Mantenimientos --- */}
+                <div className="mb-6 flex flex-col md:flex-row gap-4">
+                    <SearchBar 
+                        value={filters.search}
+                        onChange={(value) => setFilters(prev => ({ ...prev, search: value }))}
+                        placeholder="Buscar por activo, código, problema..."
+                        className="flex-grow"
+                    />
+                    <FormSelect name="tipo" value={filters.tipo} onChange={handleFilterChange} className="md:max-w-xs">
+                        <option value="">Todos los Tipos</option>
+                        <option value="CORRECTIVO">Correctivo</option>
+                        <option value="PREVENTIVO">Preventivo</option>
+                    </FormSelect>
+                    <FormSelect name="estado" value={filters.estado} onChange={handleFilterChange} className="md:max-w-xs">
+                        <option value="">Todos los Estados</option>
+                        <option value="PENDIENTE">Pendiente</option>
+                        <option value="EN_PROGRESO">En Progreso</option>
+                        <option value="COMPLETADO">Completado</option>
+                    </FormSelect>
+                </div>
+
                 <div className="bg-secondary border border-theme rounded-xl p-4">
                     {loading ? (
                         <div className="flex justify-center items-center h-48"><Loader className="animate-spin text-accent" /></div>
                     ) : mantenimientos.length === 0 ? (
-                        <p className="text-center text-tertiary py-12">No hay registros de mantenimiento.</p>
+                        <p className="text-center text-tertiary py-12">No se encontraron registros con los filtros actuales.</p>
                     ) : (
                         mantenimientos.map((m, index) => {
-                            // Determinar si el usuario actual es el asignado a esta tarea
-                            // Asegúrate de que currentEmpleadoId esté definido correctamente antes del return
                             const isAssignedToCurrentUser = m.empleado_asignado && m.empleado_asignado.id === currentEmpleadoId;
-
                             return (
                                 <motion.div
                                     key={m.id}
@@ -327,45 +338,34 @@ export default function MantenimientoList() {
                                     transition={{ delay: index * 0.05 }}
                                     className="flex items-center p-3 border-b border-theme last:border-b-0 hover:bg-tertiary rounded-lg"
                                 >
-                                    {/* --- Icono --- */}
                                     <div className="p-3 bg-accent bg-opacity-10 rounded-lg mr-4">
                                         <Wrench className="text-accent" />
                                     </div>
-
-                                    {/* --- Datos del Mantenimiento (Grid) --- */}
                                     <div className="flex-1 grid grid-cols-1 md:grid-cols-4 gap-x-4">
-                                        {/* Columna 1: Activo y Descripción */}
                                         <div>
                                             <p className="font-semibold text-primary flex items-center gap-1.5"><Box size={14} /> {m.activo_nombre}</p>
                                             <p className="text-sm text-secondary">{m.descripcion_problema.substring(0, 40)}...</p>
                                         </div>
-                                        {/* Columna 2: Estado y Tipo */}
                                         <div>
                                             <p className={`font-medium ${getEstadoColor(m.estado)}`}>{m.estado}</p>
                                             <p className="text-sm text-secondary">{m.tipo}</p>
                                         </div>
-                                        {/* Columna 3: Asignado y Costo */}
                                         <div>
                                             <p className="text-primary flex items-center gap-1.5"><User size={14} /> {m.empleado_nombre}</p>
                                             <p className="text-secondary text-sm flex items-center gap-1.5"><DollarSign size={14} /> {parseFloat(m.costo).toLocaleString('es-BO')}</p>
                                         </div>
-                                        {/* Columna 4: Fechas */}
                                         <div>
                                             <p className="text-sm text-primary">Inicio: {new Date(m.fecha_inicio).toLocaleDateString()}</p>
                                             <p className="text-sm text-secondary">Fin: {m.fecha_fin ? new Date(m.fecha_fin).toLocaleDateString() : 'N/A'}</p>
                                         </div>
                                     </div>
-
-                                    {/* --- Botones de Acción (Condicionales) --- */}
                                     <div className="flex gap-2 ml-4 flex-shrink-0">
-                                        {/* Botones Edit/Delete solo para Admin (canManage) */}
                                         {canManage && (
                                             <>
                                                 <button onClick={() => openEditModal(m)} title="Editar (Admin)" className="p-2 text-primary hover:text-accent"><Edit size={18} /></button>
                                                 <button onClick={() => handleDelete(m.id)} title="Eliminar (Admin)" className="p-2 text-primary hover:text-red-500"><Trash2 size={18} /></button>
                                             </>
                                         )}
-                                        {/* Botón Actualizar Estado solo para el empleado asignado */}
                                         {isAssignedToCurrentUser && (
                                             <button onClick={() => openUpdateModal(m)} title="Actualizar Estado" className="p-2 text-primary hover:text-green-500"><CheckSquare size={18} /></button>
                                         )}
@@ -377,9 +377,6 @@ export default function MantenimientoList() {
                 </div>
             </motion.div>
 
-            {/* --- Modales --- */}
-
-            {/* Modal para Crear/Editar (usado por Admin con 'canManage') */}
             <Modal isOpen={isModalOpen} onClose={handleCloseModal} title={editingMantenimiento ? "Editar Mantenimiento" : "Nuevo Mantenimiento"}>
                 <MantenimientoForm
                     mantenimiento={editingMantenimiento}
@@ -388,9 +385,7 @@ export default function MantenimientoList() {
                 />
             </Modal>
 
-            {/* Modal para Actualizar Estado (usado por Empleado Asignado) */}
             <Modal isOpen={isUpdateModalOpen} onClose={handleCloseUpdateModal} title="Actualizar Estado Mantenimiento">
-                {/* Pasamos el mantenimiento que se está actualizando para mostrar info y usar su ID */}
                 <UpdateStatusForm
                     mantenimiento={updatingMantenimiento}
                     onSave={handleUpdateStatus}
